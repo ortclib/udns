@@ -1,5 +1,4 @@
 #! /bin/sh
-# $Id: configure,v 1.4 2007/01/07 23:19:40 mjt Exp $
 # autoconf-style configuration script
 #
 
@@ -26,8 +25,7 @@ fi
 enable() {
   opt=`echo "$1" | sed 's/^--[^-]*-//'`
   case "$opt" in
-    ipv6|stats|master_dump|zlib|dso) ;;
-    master-dump) opt=master_dump ;;
+    ipv6) ;;
     *) echo "configure: unrecognized option \`$1'" >&2; exit 1;;
   esac
   eval enable_$opt=$2

@@ -1,5 +1,4 @@
-/* $Id: udns_jran.c,v 1.2 2010-12-02 09:49:16 mjt Exp $
- * udns_jran.c: small non-cryptographic random number generator
+/* udns_jran.c: small non-cryptographic random number generator
  * taken from http://burtleburtle.net/bob/rand/smallprng.html
  * by Bob Jenkins, Public domain.
  */

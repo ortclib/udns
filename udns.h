@@ -1,4 +1,4 @@
-/* $Id: udns.h,v 1.59 2010-12-27 17:20:47 mjt Exp $
+/* udns.h
    header file for the UDNS library.
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -23,7 +23,7 @@
 
 #ifndef UDNS_VERSION	/* include guard */
 
-#define UDNS_VERSION "0.1"
+#define UDNS_VERSION "0.2"
 
 #ifdef WINDOWS
 # ifdef UDNS_DYNAMIC_LIBRARY

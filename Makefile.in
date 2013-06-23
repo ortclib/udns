@@ -1,5 +1,5 @@
 #! /usr/bin/make -rf
-# $Id: Makefile.in,v 1.16 2010-12-27 17:35:02 mjt Exp $
+# Makefile.in
 # libudns Makefile
 #
 # Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -21,7 +21,7 @@
 # Suite 330, Boston, MA  02111-1307  USA
 
 NAME   = udns
-VERS   = 0.1
+VERS   = 0.2
 SOVER  = 0
 
 SRCS   = udns_dn.c udns_dntosp.c udns_parse.c udns_resolver.c udns_init.c \
