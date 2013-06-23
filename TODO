@@ -1,0 +1,45 @@
+$Id: TODO,v 1.4 2004/06/30 20:16:08 mjt Exp $
+
+The following is mostly an internal, not user-visible stuff.
+
+* check the search return: when we performed a name search, we may
+  have several results, in particular, TEMPFAIL, NODATA and NXDOMAIN
+  all may be here.  What to return in which case (dns_search_next()).
+  Maybe fail the query if any probe returned TEMPFAIL, to be safe we
+  haven't missed anything?  Standard libresolv does quite strange
+  thing here.
+
+* allow NULL callbacks?  Or provide separate resolver
+  context list of queries which are done but wich did not
+  have callback, and dns_pick() routine to retrieve results
+  from this query, i.e. allow non-callback usage?  The
+  non-callback usage may be handy sometimes (any *good*
+  example?), but it will be difficult to provide type-safe
+  non-callback interface due to various RR-specific types
+  in use.
+
+* in dns_set_serv() (set list of nameservers to use), we may
+  accept *names* in addition to IP addresses, and perform
+  internal resolving using current (defined) set of nameservers.
+  Is such a feature useful for anything but debugging tools
+  such as dig, host, etc?
+
+* DNS_OPT_FLAGS should be DNS_OPT_ADDFLAGS and DNS_OPT_SETFLAGS.
+  Currently one can't add a single flag bit but preserve
+  existing bits... at least not without retrieving all current
+  flags before, which isn't that bad anyway.
+
+* dns_set_opts() may process flags too (such as aaonly etc)
+
+* a way to disable $NSCACHEIP et al processing?
+
+* initialize/open the context automatically, and be more
+  liberal about initialization in general?
+
+* dns_init(do_open) - make the parameter opposite, aka
+  dns_init(skip_open) ?
+
+* umplement /etc/hosts lookup too, ala [c-]ares??
+
+* windows port?  Oh no please!..  At least, I can't do it myself
+  because of the lack of platform.

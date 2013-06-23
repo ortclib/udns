@@ -1,25 +1,30 @@
-.\" $Id: udns.3,v 1.3 2004/06/28 20:35:25 mjt Exp $
-.\" libdns manpage
+.\" $Id: udns.3,v 1.13 2004/06/30 20:44:48 mjt Exp $
+.\" udns library manpage
 .\"
-.TH libdns 3 "Jun 2004" "Library Functions"
+.TH udns 3 "Jun 2004" "Library Functions"
 
 .SH NAME
-libdns \- stub DNS resolver library
+udns \- stub DNS resolver library
 
 .SH SYNOPSYS
 .nf
-#include <dns.h>
-struct dns_ctx;
-struct dns_query;
-extern struct dns_ctx dns_defctx;
+#include <udns.h>
+struct \fBdns_ctx\fR;
+struct \fBdns_query\fR;
+extern struct dns_ctx \fBdns_defctx\fR;
+struct dns_ctx *\fIctx\fR;
+typedef void \fBdns_query_fn\fR(\fIctx\fR, void *\fIresult\fR, void *\fIdata\fR);
+typedef int
+\fBdns_parse_fn\fR(const unsigned char *\fIpkt\fR, const unsigned char \fIpkte\fR,
+       void **\fIresultp\fR);
 
-\fBcc\fR ... -l\fBdns\fR
+\fBcc\fR ... -l\fBudns\fR
 .fi
 
 .SH DESCRIPTION
 
 .PP
-The DNS library, \fBlibdns\fR, implements thread\-safe stub DNS resolver
+The DNS library, \fBudns\fR, implements thread\-safe stub DNS resolver
 functionality, which may be used both traditional, syncronous way
 and asyncronously, with application\-supplied event loop.
 
@@ -37,9 +42,52 @@ add only single socket to the set of filedescriptors it monitors for I/O.
 
 .PP
 The library uses two main objects, \fIresolver context\fR of type
-\fBstruct\ dns_ctx\fR, and \fIquery\fR of type \fBstruct\ dns_query\fR.
-Resolver context holds global information about the resolver, such as
-list of nameservers to use, list of active requests and the like.
+\fBstruct\ dns_ctx\fR, and \fIquery structure\fR of type
+\fBstruct\ dns_query\fR, both are opaque for an application.
+Resolver context holds global information about the resolver,
+such as list of nameservers to use, list of active requests and the like.
+Query objects holds information about a single DNS query in progress and
+are allocated/processed/freed by the library.   Pointer to query structure
+may be treated as an identifier of an in\-progress query and may be used
+to cancel the asyncronous query or to wait for it to complete.
+
+.PP
+Asyncronous interface works as follows.  An application initializes
+resolver context, submits any number of queries for it using one of
+supplied \fBdns_submit_\fIXXX\fR() routines (each return the query
+identifier as pointer to query structure), waits for input on the
+UDP socket used by the library, and gives some control to the library
+by calling \fBdns_ioevent\fR() and \fBdns_timeouts\fR() routines when
+appropriate.  The library performs all necessary processing and executes
+application supplied callback routine when a query completes (either
+successefully or not), giving it the result if any, pointer to the
+resolver context (from which completion status may be obtained), and
+the data pointer supplied by an application when the query has been
+submitted.  When submitting a query, an application requests how to
+handle the reply \-\- to either return raw DNS reply packet for its
+own low\-level processing, or it may provide an address of \fIparsing
+routine\fR of type \fBdns_parse_fn\fR to perform conversion of on\-wire
+format into easy to use data structure (the library provides parsing
+routines for several commonly used resource record types, as well as
+type\-safe higher\-level inteface that requests parsing automatically).
+The I/O monitoring and timeout handling may be either traditional
+select() or poll() based, or any callback\-driven technique may be
+used.
+
+.PP
+Additionally, the library provides traditional syncronous interface,
+which may be intermixed with asyncronous calls (during syncronous
+query processing, other asyncronous queries for the same resolver
+context continued to be processed as usual).  An application uses
+one of numerous \fBdns_resolve_\fIXXX\fR() routines provided by the
+library to perform a query.  As with asyncronous interface, an
+application may either request to return raw DNS packet or type\-specific
+data structure by providing the parsing routine to handle the reply.
+Every routine from \fBdns_resolve_\fIXXX\fR() series return pointer
+to result or NULL in case of any error.  Query completion status
+(or length of the raw DNS packet) is available from the resolver
+context using \fBdns_status\fR() routine, the same way as for the
+asyncronous interface.
 
 .PP
 Internally, library uses on\-wire format of domain names, referred
@@ -47,12 +95,23 @@ to as \fIDN format\fR in this manual page.  This is a series of domain
 \fIlabels\fR whith preceeding length byte, terminated by zero\-length
 label wich is integral part of the DN format.  There are several routines
 provided to convert from traditional asciiz string to DN and back.
+Higher\-level type\-specific query interface hides the DN format from
+an application.
 
-.SS "Miscellaneous constants"
+.SH "COMMON DEFINITIONS"
+
+.PP
+Every DNS Resource Record (RR) has a \fItype\fR and a \fIclass\fR.
+The library defines several integer constants, \fBDNS_C_\fIXXX\fR and
+\fBDNS_T_\fIXXX\fR, to use as symbolic names for RR classes and types,
+such as \fBDNS_C_IN\fR for Internet class, \fBDNS_T_A\fR for IPv4
+address record type and so on.  See udns.h header file for complete list
+of all such constants.
 
 .PP
 The following constants are defined in dns.h header file:
-Maximum length of the domain name in internal (on\-wire) format.
+.IP "\fBDNS_MAXDN\fR (255 bytes)"
+Maximum length of the domain name in internal (on\-wire) DN format.
 .IP "\fBDNS_MAXLABEL\fR (63 bytes)"
 Maximum length of a single label in DN format.
 .IP "\fBDNS_MAXNAME\fR (1024 bytes)"
@@ -75,21 +134,666 @@ UDP packet fragmentation isn't a problem in most cases.  Note also that
 the size of actual packets will be as many bytes as actual reply size requires,
 which is smaller than this value in almost all cases.
 
-.SS "DNS Classes and Types"
 .PP
-Every DNS Resource Record (RR) has a \fItype\fR and a \fIclass\fR.
-The library defines several integer constants, prefixed by \fBDNS_C_\fR and
-\fBDNS_T_\fR, to use as symbolic names for RR classes and types,
-such as \fBDNS_C_IN\fR for Internet class, \fBDNS_T_A\fR for IPv4
-address record type and so on.  See dns.h for complete list of all
-such constants.
+Additionally, several constants are defined to simplify work with raw DNS
+packets, such as DNS response codes (\fBDNS_R_\fIXXX\fR), DNS header layout
+(\fBDNS_H_\fIXXX\fR) and others.  Again, see udns.h for complete list.
+Library error codes (\fBDNS_E_\fIXXX\fR) are described later in this
+manual page.
+
+.SH "RESOLVER CONTEXT"
+
+.PP
+Resolver context, of type \fBstruct\ dns_ctx\fR, is an object which is
+opaque to an application.  Several routines provided by the library
+to initialize, copy and free resolver contexts.  Most other high\-level
+routines in this library expects a pointer to resolver context, \fIctx\fR,
+as the first argument.  There is a default resolver context available,
+named \fBdns_defctx\fR.  When the context pointer \fIctx\fR passed to
+a routine is NULL, \fBdns_defctx\fR is used.  Several resolver contexts
+may be active at the same time, for example, when an application is
+multi\-threaded and each thread uses resolver.
+.PP
+When initializing resolver context, the library uses information from
+system file /etc/resolv.conf (see \fBresolv.conf\fR(5)), consults
+environment variables \fB$LOCALDOMAIN\fR, \fB$DNSCACHEIP\fR,
+\fB$NAMESERVERS\fR and \fB$RES_OPTIONS\fR, and local host name to obtain
+list of local nameservers, domain name search list and various resolver
+options.
+.PP
+The following routines to initialize resolver context are available:
+.PP
+.nf
+int \fBdns_init\fR(int \fIdo_open\fR)
+struct dns_ctx *\fBdns_new\fR(struct dns_ctx *\fIcopy\fR)
+void \fBdns_free\fR(\fIctx\fR)
+.fi
+.RS
+\fBdns_init\fR() initializes default resolver context, \fBdns_defctx\fR,
+and optionally opens it (if \fIdo_open\fR is true) using \fBdns_open\fR(),
+returning negative value on error.
+\fBdns_new\fR() makes a copy of a given resolver context \fIcopy\fR, or
+default context if \fIcopy\fR is NULL, and returns pointer to it.
+\fBdns_new\fR() may fail if there's no memory available to make a copy
+of \fIcopy\fR, in which case the routine will return NULL pointer.
+\fBdns_free\fR() is used to close assotiated socket and free resolver
+context resources and cancelling (abandoming) all active queries
+assotiated with it.  It's ok to free \fBdns_defctx\fR as well as
+dynamically allocated contexts returned by \fBdns_new\fR().
+.RE
+.PP
+.nf
+int \fBdns_set_serv\fR(\fIctx\fR, const char *\fIserv\fR[])
+int \fBdns_set_srch\fR(\fIctx\fR, const char *\fIsrch\fR[])
+.fi
+.RS
+Set the list of nameservers (\fBdns_set_serv\fR()) and search list
+(\fBdns_set_srch\fR()) for the given context \fIctx\fR.  Both
+\fIsrv\fR and \fIsrch\fR is an argv\-style list of strings, holding
+IP addresses of nameservers to use and domain names in search list.
+Current values in \fIctx\fR are replaced with the given ones.  It is
+an error to call either of this functions if there's at least one
+query is queued for \fIctx\fR.
+.RE
+.PP
+.nf
+int \fBdns_set_opts\fR(\fIctx\fR, const char *\fIopts\fR)
+.fi
+.RS
+set resolver context options from \fIopts\fR string, in the same way as
+processing \fBoptions\fR statement in resolv.conf and \fB$RES_OPTIONS\fR
+environment variable.
+.RE
+.PP
+.nf
+void \fBdns_set_opt\fR(\fIctx\fR, int \fIopt\fR, \fIval\fR)
+.fi
+.RS
+.B TODO
+The \fIflags\fR argument is a bitmask with the following bits defined:
+.IP \fBDNS_NOSRCH\fR
+do not perform domain name search in search list.
+.IP \fBDNS_NORD\fR
+do not request recursion when performing queries
+(i.e. don't set RD flag in querues).
+.IP \fBDNS_AAONLY\fR
+request authoritative answers only (i.e. set AA
+flag in queries).
+.RE
+
+.PP
+.nf
+int \fBdns_open\fR(\fIctx\fR)
+int \fBdns_sock\fR(const \fIctx\fR)
+void \fBdns_close\fR(\fIctx\fR)
+.fi
+.RS
+\fBdns_open\fR() opens the UDP socket used for queries if not already
+open, and return assotiated filedescriptor (or negative value in case
+of error).
+\fBdns_sock\fR() return the UDP socket if open, or -1 if not.
+\fBdns_close\fR() closes the UDP socket if it was open.
+.RE
+
+.PP
+.nf
+int \fBdns_active\fR(const \fIctx\fR)
+.fi
+.RS
+return true if there's at least one query queued for the given context
+\fIctx\fR.
+.RE
+
+.PP
+.nf
+int \fBdns_status\fR(const \fIctx\fR)
+.fi
+.RS
+return status code from last operation.  When using syncronous
+interface, this is the query completion status of the last query.
+With asyncronous interface, from within the callback routine,
+this is the query completion status of the query for which the
+callback is being called.  When query submission fails, this
+is the error code indicating failure reason.  All error codes
+are negative and are represented by \fBDNS_E_\fIXXX\fR constants
+described below.
+.RE
+
+.PP
+.nf
+void \fBdns_ioevent\fR(\fIctx\fR, time_t \fInow\fR)
+.fi
+.RS
+this routine may be called by an application to process I/O
+events on the UDP socket used by the library, as returned
+by \fBdns_sock\fR().  The routine tries to receive incoming
+UDP datagram from the socket and process it.  The socket is
+set up to be non\-blocking, so it is safe to call the routine
+even if there's no data to read.  The routine will process
+as many datagrams as are queued for the socket, so it is
+safe to use it with either level\-triggered or edge\-triggered
+I/O monitoring model.  The \fInow\fR argument is either a
+current time as returned by \fBtime\fR(), or 0, in which
+case the routine will obtain current time by it's own.
+.RE
+
+.PP
+.nf
+int \fBdns_timeouts\fR(\fIctx\fR, int \fImaxwait\fR, time_t \fInow\fR)
+.fi
+.RS
+process any pending timeouts and return number of secounds
+from current time (\fInow\fR if it is not 0) to the time when
+the library wants the application to pass it control to process
+more queued requests.  In case when there are no requests pending,
+this time is -1.  The routine will not request a time larger than
+\fImaxwait\fR secounds if it is greather or equal to zero.  If
+\fInow\fR is 0, the routine will obtain current time by it's own;
+when it is not 0, it should contain current time as returned by
+\fBtime\fR().
+.RE
+
+.PP
+.nf
+typedef int \fBdns_utm_fn\fR(void *\fIarg\fR, struct dns_query *\fIq\fR, int \fItimeout\fR)
+void \fBdns_set_cbck\fR(\fIctx\fR, dns_utm_fn *\fIutmfn\fR, void *\fIarg\fR)
+.fi
+.RS
+An application may use custom callback\-based I/O multiplexing mechanism.
+Usually such a mechanism have concept of a \fItimer\fR, and an ability
+to register a timer event in a form of a callback routine which will
+be executed after certain amount of time.  In order to use such an
+event mechanism, udns provides an ability to register and de\-register
+timer events necessary for internal processing using whatever event
+mechanism an application uses.  For this to work, it is possible to
+assotiate a pointer to a routine that will perform necessary work for
+(de)registering timer events with a given resolver context, and
+udns will call that routine at appropriate times.  Prototype of
+such a routine is shown by \fBdns_utm_fn\fR typedef above.  Libudns
+assotiates timers with queue structure only, and there may be only
+one active timer for any given queue structure.  To register timer
+event, udns will call the routine giving it the query structure
+in question and non\-zero \fItimeout\fR argument.  When a timer is
+not needed anymore, udns de\-registers it by calling the same
+routine with zero \fItimeout\fR.  When a timer expires, an application
+should de\-register timer event and call \fBdns_tmevent\fR() routine
+with the query structure as an argument.
+Other, non\-callback timer usage is provided too, see below.
+.RE
+
+.PP
+.nf
+void \fBdns_tmevent\fR(struct dns_query *\fIq\fR, time_t \fInow\fR);
+.fi
+.RS
+routine which should be called from event\-driven application
+event loop when a timer set using routine set up by
+\fBdns_set_cbck\fR() expires.
+.RE
+
+.PP
+.B XXXX TODO: some more resolver context routines, like dns_set_dbgfn() etc.
+
+.SH "QUERY INTERFACE"
+
+.PP
+There are two ways to perform DNS queries: traditional syncronous
+way, when udns performs all the necessary processing and return
+control to the application only when the query completes, and
+asyncronous way, when an application submits one or more queries
+to the library using given resolver context, and waits for completion
+by monitoring filedescriptor used by library and calling library
+routines to process input on that filedescriptor.  Asyncronous mode
+works with callback routines: an application supplies an address of
+a routine to execute when the query completes, and a data pointer,
+which is passed to the callback routine.
+
+.PP
+Queries are submitted to the library in a form of \fBstruct\ dns_query\fR.
+To perform asyncronous query, an application allocates memory for the
+\fIquery structure\fR and passes it to the library using \fBdns_submit\fR()
+routines, together with all the query parameters.  When the query completes,
+library will call application\-supplied callback routine, giving it the
+resolver context (wich holds query completion status), dynamically allocated
+result (which will be either raw DNS packet or, if applicatin requested parsing
+the result by specifying non-NULL parse routine, ready\-to\-use type\-specific
+structure), and a data pointer provided by an application when it submitted the
+query.  It is the application who's responsible for freeing the result memory.
+.PP
+Generic query callback routine looks like this:
+.nf
+typedef void
+\fBdns_query_fn\fR(\fIctx\fR, void *\fIresult\fR, void *\fIdata\fR)
+.fi
+Type\-specific query interface expects similar form of callback
+routine with the only difference in type of \fBresult\fR argument,
+which will be pointer to specific data structure (decoded reply)
+instead of this void pointer to raw DNS packet data.
+
+.PP
+Result parsing routine looks like this:
+.nf
+typedef int
+\fBdns_parse_fn\fR(const unsigned char *\fIpkt\fR, const unsigned char *\fIpkte\fR,
+      void **\fIresultp\fR);
+.fi
+Type\-specific query inteface supplies necessary parsing routines
+automatically.
+
+.PP
+In case of error, query completion status as returned by
+\fBdns_status\fR(\fIctx\fR), will contain one of the following values:
+.IP "positive value"
+length of raw DNS packet if parsing is not requested.
+.IP 0
+the query was successeful and the \fIreply\fR points to type\-specific
+data structure.
+.IP \fBDNS_E_TEMPFAIL\fR
+temporary error, the resolver nameserver was not able to
+process our query or timed out.
+.IP \fBDNS_E_PROTOCOL\fR
+protocol error, a nameserver returned malformed reply.
+.IP \fBDNS_E_NXDOMAIN\fR
+the domain name does not exist.
+.IP \fBDNS_E_NODATA\fR
+there is no data of requested type found.
+.IP \fBDNS_E_NOMEM\fR
+out of memory while processing request.
+.IP \fBDNS_E_BADQUERY\fR
+some aspect of the query (most common is the domain name in question)
+is invalid, and the library can't even start a query.
+
+.PP
+Library provides two series of routines which uses similar interface \-\-
+one for asyncronous queries and another for syncronous queries.  There
+are two general low\-level routines in each series to submit (asyncronous
+interface) and resolve (syncronous interface) queries, as well as several
+type\-specific routines with more easy\-to\-use interfaces.  To submit
+an asyncronous query, use one of \fBdns_submit_\fIXXX\fR() routine, each
+of which accepts query parameters, pointers to callback routine and to
+callback data, and optional current time hint.  Note type\-specific
+\fBdns_submit_\fIXXX\fR() routines expects specific type of the callback
+routine as well, which accepts reply as a pointer to corresponding
+structure, not a void pointer).  Every \fBdns_submit_\fIXXX\fR() routine
+return pointer to internal query structure of type struct\ dns_query,
+used as an identifier for the given query.
+
+.PP
+To resolve a query syncronously, use one of \fBdns_resolve_\fIXXX\fR()
+routines, which accepts the same query parameters (but not the
+callback pointers) as corresponding \fBdns_submit_\fIXXX\fR(), and
+return the query result, which is the same as passed to the callback
+routine in case of asyncronous interface.
+
+.PP
+In either case, the result memory (if the query completed successefully)
+is dynamically allocated and should be freed by an application.  If
+the query failed for any reason, the result will be NULL, and error
+status will be available from \fBdns_status\fR(\fIctx\fR) routine
+as shown above.
+
+.PP
+.nf
+struct dns_query *
+\fBdns_submit_dn\fR(\fIctx\fR,
+     const unsigned char *\fIdn\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR,
+     \fIparse\fR, \fIcbck\fR, \fIdata\fR, \fInow\fR)
+struct dns_query *
+\fBdns_submit_p\fR(\fIctx\fR,
+     const char *\fIname\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR,
+     \fIparse\fR, \fIcbck\fR, \fIdata\fR, \fInow\fR)
+   enum dns_class \fIqcls\fR;
+   enum dns_type \fIqtyp\fR;
+   int \fIflags\fR;
+   dns_parse_fn *\fIparse\fR;
+   dns_query_fn *\fIcbck\fR;
+   void *\fIdata\fR;
+   time_t \fInow\fR;
+.fi
+.RS
+submit a query for processing for the given resolver context \fIctx\fR.
+Two routines differs only in 3rd argument, which is domain name in
+DN format (\fIdn\fR) or asciiz string (\fIname\fR).  The query will be
+performed for the given domain name, with type \fIqtyp\fR in class \fIqcls\fR,
+using option bits in \fIflags\fR, using RR parsing routine pointed by
+\fIparse\fR if not-NULL, and upon completion, \fIcbck\fR function will
+be called with the \fIdata\fR argument.  The \fInow\fR argument specifies
+current time as returned by \fBtime\fR() routine, used to minimize number
+of system calls performed by an application; if \fInow\fR is 0, the routine
+will obtain current time by it's own.  In case of successeful query submission,
+the routine return pointer to internal query structure which may be treated
+as an identifier of the query as used by the library, and may be used as an
+argument for \fBdns_cancel\fR() routine.  In case of error, NULL will be
+returned, and context error status (available using \fIdns_status\fR() routine)
+will be set to corresponding error code, which in this case may be
+DNS_E_BADQUERY if the \fIname\fR of \fIdn\fR is invalid, DNS_E_NOMEM if
+there's no memory available to allocate query structure, or DNS_E_TEMPFAIL
+if an internal error occured.
+.RE
+
+.PP
+.nf
+void *\fBdns_resolve_dn\fR(\fIctx\fR,
+     const unsigned char *\fIdn\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR, \fIparse\fR);
+void *\fBdns_resolve_p\fR(\fIctx\fR,
+     const char *\fIname\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR, \fIparse\fR)
+     \fIparse\fR, \fIcbck\fR, \fIdata\fR, \fInow\fR)
+   enum dns_class \fIqcls\fR;
+   enum dns_type \fIqtyp\fR;
+   int \fIflags\fR;
+   dns_parse_fn *\fIparse\fR;  
+.fi
+.RS
+syncronous interface.  The routines perform all the steps necessary to resolve
+the given query and return the result.  If there's no positive result for any
+reason, all the routines return NULL, and set context error status (available 
+using \fBdns_status\fR() routine) to indicate the error code.  If the query
+was successeful, context status code will contain either the length of the
+raw DNS reply packet if \fIparse\fR argument was NULL (in which case the return
+value is pointer to the reply DNS packet), or 0 (in which case the return value
+is the result of \fIparse\fR routine).  If the query successeful (return value
+is not NULL), the memory returned was dynamically allocated by the library
+and should be free()d by application after use.
+.RE
+
+.PP
+.nf
+void *\fBdns_resolve\fR(\fIctx\fR, struct dns_query *\fIq\fR)
+.fi
+.RS
+wait for the given query \fIq\fR, as returned by one of
+\fBdns_submit_\fIXXX\fR() routines, for completion, and
+return the result.  The callback routine will not be called
+for this query.  After completion, the query identifier \fIq\fI
+is not valid. Both \fBdns_resolve_dn\fR() and \fBdns_resolve_p\fR()
+are just wrappers around corresponding submit routines and this
+\fBdns_resolve\fR() routine.
+.RE
+
+.PP
+.nf
+void \fBdns_cancel\fR(\fIctx\fR, struct dns_query *\fIq\fR)
+.fi
+.RS
+cancel an active query \fIq\fR, without calling a callback routine.
+After completion, the query identifier \fIq\fR is not valid.
+.RE
+
+.SH "TYPE\-SPECIFIC QUERIES"
+
+.PP
+In addition to the generic low\-level query interface, the library provides
+a set of routines to perform specific queries in a type\-safe manner, as
+well as parsers for several well\-known resource record types.  The library
+implements high\-level interface for A, AAAA, PTR, MX and TXT records
+and DNSBL and RHSBL functionality.  These routines returns specific types
+as result of a query, instead of raw DNS packets.  The following types
+and routines are available.
+
+.PP
+.nf
+struct \fBdns_rr_null\fR {
+  char *\fBdnsn_qname\fR;     /* original query name */
+  char *\fBdnsn_cname\fR;     /* canonical name */
+  unsigned \fBdnsn_ttl\fR;    /* Time\-To\-Live (TTL) value */
+  int \fBdnsn_nrr\fR;         /* number of records in the set */
+};
+.fi
+.PP
+NULL RR set, used as a base for all other RR type structures.
+Every RR structure as used by the library have four standard
+fields as in struct\ \fBdns_rr_null\fR.
+
+.SS "IN A Queries"
+.PP
+.nf
+struct \fBdns_rr_a4\fR {       /* IN A RRset */
+  char *\fBdnsa4_qname\fR;     /* original query name */
+  char *\fBdnsa4_cname\fR;     /* canonical name */
+  unsigned \fBdnsa4_ttl\fR;    /* Time\-To\-Live (TTL) value */
+  int \fBdnsa4_nrr\fR;         /* number of addresses in the set */
+  struct in_addr \fBdnsa4_addr\fR[]; /* array of addresses */
+};
+typedef void
+  \fBdns_query_a4_fn\fR(\fIctx\fR, struct dns_rr_a4 *\fIresult\fR, \fIdata\fR)
+dns_parse_fn \fBdns_parse_a4\fB;
+struct dns_query *
+\fBdns_submit_a4\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR,
+   dns_query_a4_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+struct dns_rr_a4 *
+\fBdns_resolve_a4\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR);
+.fi
+.PP
+The \fBstruct\ dns_rr_a4\fR structure holds a result of an \fBIN A\fR query,
+which is an array of IPv4 addresses.  Callback routine for IN A queries
+expected to be of type \fBdns_query_a4_fn\fR, which expects pointer to
+struct\ \fBdns_rr_a4\fR structure as query result instead of raw DNS packet.
+The \fBdns_parse_a4\fR() is used to convert raw DNS reply packet into
+struct\ \fBdns_rr_a4\fR (it is used internally and may be used directly too
+with generic query interface).  Routines \fBdns_submit_a4\fR() and
+\fBdns_resolve_a4\fR() are used to perform A IN queries in a type\-safe
+manner.  The \fIname\fR parameter is the domain name in question, and
+\fIflags\fR is query flags bitmask, with one bit, DNS_NOSRCH, of practical
+interest (if the \fIname\fR is absolute, that is, it ends up with a dot,
+DNS_NOSRCH flag will be set automatically).
+
+.SS "IN AAAA Queries"
+.PP
+.nf
+struct \fBdns_rr_a6\fR {       /* IN AAAA RRset */
+  char *\fBdnsa6_qname\fR;     /* original query name */
+  char *\fBdnsa6_cname\fR;     /* canonical name */
+  unsigned \fBdnsa6_ttl\fR;    /* Time\-To\-Live (TTL) value */
+  int \fBdnsa6_nrr\fR;         /* number of addresses in the set */
+  struct in6_addr \fBdnsa6_addr\fR[]; /* array of addresses */
+};
+typedef void
+  \fBdns_query_a6_fn\fR(\fIctx\fR, struct dns_rr_a6 *\fIresult\fR, \fIdata\fR)
+dns_parse_fn \fBdns_parse_a6\fB;
+struct dns_query *
+\fBdns_submit_a6\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR,
+   dns_query_a6_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+struct dns_rr_a6 *
+\fBdns_resolve_a6\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR);
+.fi
+.PP
+The \fBstruct\ dns_rr_a6\fR structure holds a result of an \fBIN AAAA\fR query,
+which is an array of IPv6 addresses.  Callback routine for IN AAAA queries
+expected to be of type \fBdns_query_a6_fn\fR, which expects pointer to
+struct\ \fBdns_rr_a6\fR structure as query result instead of raw DNS packet.
+The \fBdns_parse_a6\fR() is used to convert raw DNS reply packet into
+struct\ \fBdns_rr_a6\fR (it is used internally and may be used directly too
+with generic query interface).  Routines \fBdns_submit_a6\fR() and
+\fBdns_resolve_a6\fR() are used to perform AAAA IN queries in a type\-safe
+manner.  The \fIname\fR parameter is the domain name in question, and
+\fIflags\fR is query flags bitmask, with one bit, DNS_NOSRCH, of practical
+interest (if the \fIname\fR is absolute, that is, it ends up with a dot,
+DNS_NOSRCH flag will be set automatically).
+
+.SS "IN PTR Queries"
+.PP
+.nf
+struct \fBdns_rr_ptr\fR {       /* IN PTR RRset */
+  char *\fBdnsptr_qname\fR;     /* original query name */
+  char *\fBdnsptr_cname\fR;     /* canonical name */
+  unsigned \fBdnsptr_ttl\fR;    /* Time\-To\-Live (TTL) value */
+  int \fBdnsptr_nrr\fR;         /* number of domain name pointers */
+  char *\fBdnsptr_ptr\fR[];     /* array of domain name pointers */
+};
+typedef void
+  \fBdns_query_ptr_fn\fR(\fIctx\fR, struct dns_rr_ptr *\fIresult\fR, \fIdata\fR)
+dns_parse_fn \fBdns_parse_ptr\fB;
+struct dns_query *
+\fBdns_submit_a4ptr\fB(\fIctx\fR, const struct in_addr *\fBaddr\fR,
+   dns_query_ptr_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+struct dns_rr_ptr *
+\fBdns_resolve_a4ptr\fB(\fIctx\fR, const struct in_addr *\fBaddr\fR);
+struct dns_query *
+\fBdns_submit_a6ptr\fB(\fIctx\fR, const struct in6_addr *\fBaddr\fR,
+   dns_query_ptr_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+struct dns_rr_ptr *
+\fBdns_resolve_a6ptr\fB(\fIctx\fR, const struct in6_addr *\fBaddr\fR);
+.fi
+.PP
+The \fBstruct\ dns_rr_ptr\fR structure holds a result of an IN PTR query, which
+is an array of domain name pointers for a given IPv4 or IPv6 address.
+Callback routine for IN PTR queries expected to be of type
+\fBdns_query_ptr_fn\fR, which expects pointer to struct\ \fBdns_rr_ptr\fR
+structure as query result instead of raw DNS packet.  The \fBdns_parse_ptr\fR()
+is used to convert raw DNS reply packet into struct\ \fBdns_rr_ptr\fR
+(it is used internally and may be used directly too with generic query
+interface).  Routines \fBdns_submit_a4ptr\fR() and \fBdns_resolve_a4ptr\fR()
+are used to perform IN PTR queries for IPv4 addresses in a type\-safe
+manner. Routines \fBdns_submit_a6ptr\fR() and \fBdns_resolve_a6ptr\fR()
+are used to perform IN PTR queries for IPv6 addresses.
+
+.SS "IN MX Queries"
+.PP
+.nf
+struct \fBdns_mx\fR {          /* single MX record */
+  int \fBpriority\fR;          /* priority value of this MX */
+  char *\fBname\fR;            /* domain name of this MX */
+};
+struct \fBdns_rr_mx\fR {       /* IN MX RRset */
+  char *\fBdnsmx_qname\fR;     /* original query name */
+  char *\fBdnsmx_cname\fR;     /* canonical name */
+  unsigned \fBdnsmx_ttl\fR;    /* Time\-To\-Live (TTL) value */
+  int \fBdnsmx_nrr\fR;         /* number of mail exchangers in the set */
+  struct dns_mx \fBdnsmx_mx\fR[]; /* array of mail exchangers */
+};
+typedef void
+  \fBdns_query_mx_fn\fR(\fIctx\fR, struct dns_rr_mx *\fIresult\fR, \fIdata\fR)
+dns_parse_fn \fBdns_parse_mx\fB;
+struct dns_query *
+\fBdns_submit_mx\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR,
+   dns_query_mx_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+struct dns_rr_mx *
+\fBdns_resolve_mx\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR);
+.fi
+.PP
+The \fBstruct\ dns_rr_mx\fR structure holds a result of an IN MX query, which
+is an array of mail exchangers for a given domain.  Callback routine for IN MX
+queries expected to be of type \fBdns_query_mx_fn\fR, which expects pointer to
+struct\ \fBdns_rr_mx\fR structure as query result instead of raw DNS packet.
+The \fBdns_parse_mx\fR() is used to convert raw DNS reply packet into
+struct\ \fBdns_rr_mx\fR (it is used internally and may be used directly too
+with generic query interface).  Routines \fBdns_submit_mx\fR() and
+\fBdns_resolve_mx\fR() are used to perform IN MX queries in a type\-safe
+manner.  The \fIname\fR parameter is the domain name in question, and
+\fIflags\fR is query flags bitmask, with one bit, DNS_NOSRCH, of practical
+interest (if the \fIname\fR is absolute, that is, it ends up with a dot,
+DNS_NOSRCH flag will be set automatically).
+
+.SS "TXT Queries"
+.PP
+.nf
+struct \fBdns_txt\fR {          /* single TXT record */
+  int \fBlen\fR;                /* length of the text */
+  unsigned char *\fBtxt\fR;     /* pointer to the text */
+};
+struct \fBdns_rr_txt\fR {       /* TXT RRset */
+  char *\fBdnstxt_qname\fR;     /* original query name */
+  char *\fBdnstxt_cname\fR;     /* canonical name */
+  unsigned \fBdnstxt_ttl\fR;    /* Time\-To\-Live (TTL) value */
+  int \fBdnstxt_nrr\fR;         /* number of text records in the set */
+  struct dns_txt \fBdnstxt_txt\fR[]; /* array of mail exchangers */
+};
+typedef void
+  \fBdns_query_txt_fn\fR(\fIctx\fR, struct dns_rr_txt *\fIresult\fR, \fIdata\fR)
+dns_parse_fn \fBdns_parse_txt\fB;
+struct dns_query *
+\fBdns_submit_txt\fB(\fIctx\fR, const char \fIname\fR, enum dns_class \fIqcls\fR,
+   int \fIflags\fR, dns_query_txt_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+struct dns_rr_txt *
+\fBdns_resolve_txt\fB(\fIctx\fR, const char \fIname\fR,
+             enum dns_class \fIqcls\fR, int \fIflags\fR);
+.fi
+.PP
+The \fBstruct\ dns_rr_txt\fR structure holds a result of an IN MX query, which
+is an array of mail exchangers for a given domain.  Callback routine for IN MX
+queries expected to be of type \fBdns_query_txt_fn\fR, which expects pointer to
+struct\ \fBdns_rr_txt\fR structure as query result instead of raw DNS packet.
+The \fBdns_parse_txt\fR() is used to convert raw DNS reply packet into
+struct\ \fBdns_rr_txt\fR (it is used internally and may be used directly too
+with generic query interface).  Routines \fBdns_submit_txt\fR() and
+\fBdns_resolve_txt\fR() are used to perform IN MX queries in a type\-safe
+manner.  The \fIname\fR parameter is the domain name in question, and
+\fIflags\fR is query flags bitmask, with one bit, DNS_NOSRCH, of practical
+interest (if the \fIname\fR is absolute, that is, it ends up with a dot,
+DNS_NOSRCH flag will be set automatically).  Note that each TXT string
+as represented by \fBstruct\ dns_txt\fR, while zero\-terminated (and the
+len field of the structure does not include the terminator), may contain
+embedded null characters \-\- content of TXT records is not interpreted
+by the library in any way.
+
+.SS "DNSBL Interface"
+.PP
+A DNS\-based blocklists, or a DNSBLs, are in wide use nowadays, especially
+to protect mailservers from spammers.  The library provides DNSBL interface,
+a set of routines to perform queries against DNSBLs.  Routines accepts an
+IP address (IPv4 and IPv6 are both supported) and a base DNSBL zone as
+query parameters, and returns either \fBdns_rr_a4\fR or \fBdns_rr_txt\fR
+structure.  Note that IPv6 interface return IPv4 RRset.
+.PP
+.nf
+struct dns_query *
+\fBdns_submit_a4dnsbl\fR(\fIctx\fR,
+  const struct in_addr *\fIaddr\fR, const char *\fIdnsbl\fR,
+  dns_query_a4_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+struct dns_query *
+\fBdns_submit_a4dnsbl_txt\fR(\fIctx\fR,
+  const struct in_addr *\fIaddr\fR, const char *\fIdnsbl\fR,
+  dns_query_txt_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+struct dns_query *
+\fBdns_submit_a6dnsbl\fR(\fIctx\fR,
+  const struct in6_addr *\fIaddr\fR, const char *\fIdnsbl\fR,
+  dns_query_a4_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+struct dns_query *
+\fBdns_submit_a6dnsbl_txt\fR(\fIctx\fR,
+  const struct in6_addr *\fIaddr\fR, const char *\fIdnsbl\fR,
+  dns_query_txt_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+struct dns_rr_a4 *\fBdns_resolve_a4dnsbl\fR(\fIctx\fR,
+  const struct in_addr *\fIaddr\fR, const char *\fIdnsbl\fR)
+struct dns_rr_txt *\fBdns_resolve_a4dnsbl_txt\fR(\fIctx\fR,
+  const struct in_addr *\fIaddr\fR, const char *\fIdnsbl\fR)
+struct dns_rr_a4 *\fBdns_resolve_a6dnsbl\fR(\fIctx\fR,
+  const struct in6_addr *\fIaddr\fR, const char *\fIdnsbl\fR)
+struct dns_rr_txt *\fBdns_resolve_a6dnsbl_txt\fR(\fIctx\fR,
+  const struct in6_addr *\fIaddr\fR, const char *\fIdnsbl\fR)
+.fi
+Perform (submit or resolve) a DNSBL query for the given \fIdnsbl\fR
+domain and an IP \fIaddr\fR in question, requesting either A or TXT
+records.
+
+.SS "RHSBL Interface"
+.PP
+RHSBL is similar to DNSBL, but instead of an IP address, the
+parameter is a domain name.
+.PP
+.nf
+struct dns_query *
+\fBdns_submit_rhsbl\fR(\fIctx\fR, const char *\fIname\fR, const char *\fIrhsbl\fR,
+  dns_query_a4_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+struct dns_query *
+\fBdns_submit_rhsbl_txt\fR(\fIctx\fR, const char *\fIname\fR, const char *\fIrhsbl\fR,
+  dns_query_txt_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+struct dns_rr_a4 *
+\fBdns_resolve_rhsbl\fR(\fIctx\fR, const char *\fIname\fR, const char *\fIrhsbl\fR);
+struct dns_rr_txt *
+\fBdns_resolve_rhsbl_txt\fR(\fIctx\fR, const char *\fIname\fR, const char *\fIrhsbl\fR);
+.fi
+Perform (submit or resolve) a RHSBL query for the given \fIrhsbl\fR
+domain and \fIname\fR in question, requesting either A or TXT records.
+
+
+.SH "LOW\-LEVEL INTERFACE"
 
 .SS "Domain Names (DNs)"
 
 .PP
 A DN is a series of domain name labels each starts with length byte,
 followed by empty label (label with zero length).  The following
-routines to work with DNs are provided.  This is a low\-level interface.
+routines to work with DNs are provided.
 
 .PP
 .nf
@@ -120,14 +824,14 @@ or 0 if not.
 
 .PP
 .nf
-unsigned \fBdns_dntodn\fR(\fIsdn\fR, \fIddn\fR, \fIddnsiz\fR)
+unsigned \fBdns_dntodn\fR(\fIsdn\fR, \fIddn\fR, \fIdnsiz\fR)
   const unsigned char *\fIsdn\fR;
   unsigned char *\fIddn\fR;
-  unsigned \fIddnsiz\fR;
+  unsigned \fIdnsiz\fR;
 .fi
 .RS
 copies the source domain name \fIsdn\fR to destination buffer \fIddn\fR
-of size \fIddnsiz\fR.  Return domain name length or 0 if \fIddn\fR is
+of size \fIdnsiz\fR.  Return domain name length or 0 if \fIddn\fR is
 too small.
 .RE
 
@@ -321,296 +1025,121 @@ actually extract the domain name in question, and uses simpler interface.
 .RE
 
 .PP
-.B XXXXXXXXX Todo: struct dns_rr, struct dns_parse, dns_initparse(), dns_firstrr(), dns_nextrr().
-
-.SS "Resolver Context"
-
-.PP
-Resolver context, of type \fBstruct\ dns_ctx\fR, is an object which is
-opaque to the application.  Several routines provided by the library
-to initialize, copy and free resolver contexts.  Most other high\-level
-routines in this library expects a pointer to resolver context, \fIctx\fR,
-as the first argument.  There is a default resolver context available,
-named \fBdns_defctx\fR.  When the context pointer \fIctx\fR passed to
-a routine is NULL, \fBdns_defctx\fR is used.  Several resolver contexts
-may be active at the same time, for example, when an application is
-multi\-threaded and each thread uses resolver.  An application is not
-required to initialize default context, it is done by the library
-automatically.
-.PP
-When initializing resolver context, the library uses information from
-system file /etc/resolv.conf (see \fBresolv.conf\fR(5)), consults
-environment variables \fB$LOCALDOMAIN\fR, \fB$DNSCACHEIP\fR,
-\fB$NAMESERVERS\fR and \fB$RES_OPTIONS\fR, and local host name to obtain
-list of local nameservers, domain name search list and various resolver
-options.
-.PP
-The following routines to initialize resolver context are available:
-.PP
 .nf
-void \fBdns_init\fR(void)
-struct dns_ctx *\fBdns_new\fR(struct dns_ctx *\fIcopy\fR)
-void \fBdns_free\fR(struct dns_ctx *\fIctx\fR)
+struct \fBdns_rr\fR {
+  unsigned char \fBdnsrr_dn\fR[DNS_MAXDN]; /* the RR DN name */
+  enum dns_class \fBdnsrr_cls\fR;          /* class of the RR */
+  enum dns_type  \fBdnsrr_typ\fR;          /* type of the RR */
+  unsigned \fBdnsrr_ttl\fR;                /* TTL value */
+  unsigned \fBdnsrr_dsz\fR;                /* size of data in bytes */
+  const unsigned char *\fBdnsrr_dptr\fR;   /* pointer to the first data byte */
+  const unsigned char *\fBdnsrr_dend\fR;   /* next byte after RR */
+};
 .fi
 .RS
-\fBdns_init\fR() initializes default resolver context, \fBdns_defctx\fR.
-It is ok to call \fBdns_init\fR() more than once, it will do nothing
-if \fBdns_defctx\fR is already initialized.
-\fBdns_new\fR() makes a copy of a given resolver context \fIcopy\fR, or
-default context if \fIcopy\fR is NULL, and returns pointer to it.
-\fBdns_new\fR() may fail if there's no memory available to make a copy
-of \fIcopy\fR, in which case the routine will return NULL pointer.
-\fBdns_free\fR() is used to close assotiated socket and free resolver context
-resources.  It is an error to call this routine while there are
-active queries assotiated with the resolver context.  It's ok to
-free \fBdns_defctx\fR as well as dynamically allocated contexts
-returned by \fBdns_new\fR().
-.RE
-.PP
-.nf
-int \fBdns_set_serv\fR(struct dns_ctx *\fIctx\fR, const char *\fIserv\fR[])
-int \fBdns_set_srch\fR(struct dns_ctx *\fIctx\fR, const char *\fIsrch\fR[])
-.fi
-.RS
-Set the list of nameservers (\fBdns_set_serv\fR()) and search list
-(\fBdns_set_srch\fR()) for the given context \fIctx\fR.  Both
-\fIsrv\fR and \fIsrch\fR is an argv\-style list of strings, holding
-IP addresses of nameservers to use and domain names in search list.
-Current values in \fIctx\fR are replaced with the given ones.  It is
-an error to call either of this functions if there's at least one
-query is queued for \fIctx\fR.
-.RE
-.PP
-.nf
-int \fBdns_set_opts\fR(struct dns_ctx *\fIctx\fR, const char *\fIopts\fR)
-.fi
-.RS
-set resolver context options from \fIopts\fR string, in the same way as
-processing \fBoptions\fR statement in resolv.conf and \fB$RES_OPTIONS\fR
-environment variable.
-.RE
-.PP
-.nf
-void \fBdns_set_opt\fR(struct dns_ctx *\fIctx\fR, int \fIopt\fR, \fIval\fR)
-.fi
-.RS
-.B TODO
-The \fIflags\fR argument is a bitmask with the following bits defined:
-.IP \fBDNS_NOSRCH\fR
-do not perform domain name search in search list.
-.IP \fBDNS_NORD\fR
-do not request recursion when performing queries
-(i.e. don't set RD flag in querues).
-.IP \fBDNS_AAONLY\fR
-request authoritative answers only (i.e. set AA
-flag in queries).
+The \fBstruct\ dns_rr\fR structure is used to hold information about
+single DNS Resource Record (RR) in an easy to use form.
 .RE
 
 .PP
 .nf
-int \fBdns_open\fR(struct dns_ctx *\fIctx\fR)
-int \fBdns_sock\fR(const struct dns_ctx *\fIctx\fR)
-void \fBdns_close\fR(struct dns_ctx *\fIctx\fR)
+struct \fBdns_parse\fR {
+  const unsigned char *\fBdnsp_pkt\fR; /* pointer to the packet being parsed */
+  const unsigned char *\fBdnsp_end\fR; /* end of the packet pointer */
+  const unsigned char *\fBdnsp_cur\fR; /* current packet positionn */
+  int \fBdnsp_nrr\fR;                  /* number of RRs left */
+  unsigned \fBdnsp_ttl\fR;             /* TTL value so far */
+  const unsigned char *\fBdnsp_qdn\fR; /* the domain of interest or NULL */
+  enum dns_class \fBdnsp_qcls\fR;      /* class of interest or 0 for any */
+  enum dns_type  \fBdnsp_qtyp\fR;      /* type of interest or 0 for any */
+  unsigned char \fBdnsp_dnbuf\fR[DNS_MAXDN]; /* domain name buffer */
+};
 .fi
 .RS
-\fBdns_open\fR() opens the UDP socket used for queries if not already
-open, and return assotiated filedescriptor (or negative value in case
-of error).
-\fBdns_sock\fR() return the UDP socket if open, or -1 if not.
-\fBdns_close\fR() closes the UDP socket if it was open.
+The \fBstruct dns_parse\fR structure is used to parse DNS reply packet.
+It holds information about the packet being parsed (dnsp_pkt, dnsp_end and
+dnsp_cur fields), number of RRs in the current section left to do, and
+the information about specific RR which we're looking for (dnsp_qdn,
+dnsp_qcls and dnsp_qtyp fields).
 .RE
 
 .PP
 .nf
-void \fBdns_ioevent\fR(struct dns_ctx *\fIctx\fR, time_t \fInow\fR)
+int \fBdns_initparse\fR(struct dns_parse *\fIp\fR,
+  enum dns_class \fIqcls\fR, enum dns_type \fIqtyp\fR,
+  const unsigned char *\fIpkt\fR, const unsigned char *\fIend\fR)
 .fi
 .RS
-this routine may be called by an application to process I/O
-events on the UDP socket used by the library, as returned
-by \fBdns_sock\fR().  The routine tries to receive incoming
-UDP datagram from the socket and process it.  The socket is
-set up to be non\-blocking, so it is safe to call the routine
-even if there's no data to read.  The routine will process
-as many datagrams as are queued for the socket, so it is
-safe to use it with either level\-triggered or edge\-triggered
-I/O monitoring model.  The \fInow\fR argument is either a
-current time as returned by \fBtime\fR(), or 0, in which
-case the routine will obtain current time by it's own.
+initializes the RR parsing structure \fIp\fR.  The \fIp\fR->\fBdnsp_qdn\fR
+field is initialized to the DN in question section, \fIp\fR->\fBdnsp_nrr\fR
+is set to number of RRs in answer section, \fIp\fR->\fBdnsp_cur\fR is
+set to point to the first RR in answer section, and \fIp\fR->\fBdnsp_ttl\fR
+will be set to max TTL value, 0xffffffff.
 .RE
 
 .PP
 .nf
-int \fBdns_timeouts\fR(struct dns_ctx *\fIctx\fR, int \fImaxwait\fR, time_t \fInow\fR)
+int \fBdns_nextrr\fR(struct dns_parse *\fIp\fR, struct dns_rr *\fIrr\fR);
 .fi
 .RS
-process any pending timeouts and return number of secounds
-from current time (\fInow\fR if it is not 0) to the time when
-the library wants the application to pass it control to process
-more queued requests.  In case when there are no requests pending,
-this time is -1.  The routine will not request a time larger than
-\fImaxwait\fR secounds if it is greather or equal to zero.  If
-\fInow\fR is 0, the routine will obtain current time by it's own;
-when it is not 0, it should contain current time as returned by
-\fBtime\fR().
+searches for next RR in the packet based on the criteria provided in
+the \fIp\fR structure, filling in the \fIrr\fR structure and
+advancing \fIp\fR->\fBdnsp_cur\fR to the next RR in the packet.
+RR selection is based on dnsp_qdn, dnsp_qcls and dnsp_qtyp fields in
+the dns_parse structure.  Any (or all) of the 3 fields may be 0,
+which means any actual value from the packet is acceptable.  In case
+the field isn't 0 (or NULL for dnsp_qdn), only RRs with corresponding
+characteristics are acceptable.  Additionally, when dnsp_qdn is non\-NULL,
+\fBdns_nextrr\fR() performs automatic CNAME expansion.
+Routine will return positive value on success, 0 in case it reached the end
+of current section in the packet (\fIp\fR->\fBdnsp_nrr\fR is zero), or
+negative value if next RR can not be decoded (packet format is invalid).
+The routine updates \fIp\fR->\fBdnsp_qdn\fR automatically when this
+field is non\-NULL and it encounters appropriate CNAME RRs (saving CNAME
+target in \fIp\fR->\fBdnsp_dnbuf\fR), so after end of the process,
+\fIp\fR->\fBdnsp_qdn\fR will point to canonical name of the domain
+in question.  The routine updates \fIp\fR->\fBdnsp_ttl\fR value to
+be the minimum TTL of all RRs found.
 .RE
 
 .PP
 .nf
-typedef int \fBdns_utm_fn\fR(void *\fIarg\fR, struct dns_query *\fIq\fR, int \fItimeout\fR)
-void \fBdns_set_cbck\fR(struct dns_ctx *\fIctx\fR, dns_utm_fn *\fIutmfn\fR, void *\fIarg\fR)
+int \fBdns_firstrr\fR(struct dns_parse *\fIp\fR, struct dns_rr *\fIrr\fR,
+  enum dns_class \fIqcls\fR, enum dns_type \fIqtyp\fR,
+  const unsigned char *\fIpkt\fR, const unsigned char *\fIend\fR);
 .fi
 .RS
-An application may use custom callback\-based I/O multiplexing mechanism.
-Usually such a mechanism have concept of a \fItimer\fR, and an ability
-to register a timer event in a form of a callback routine which will
-be executed after certain amount of time.  In order to use such an
-event mechanism, libdns provides an ability to register and de\-register
-timer events necessary for internal processing using whatever event
-mechanism an application uses.  For this to work, it is possible to
-assotiate a pointer to a routine that will perform necessary work for
-(de)registering timer events with a given resolver context, and
-libdns will call that routine at appropriate times.  Prototype of
-such a routine is shown by \fBdns_utm_fn\fR typedef above.  Libdns
-assotiates timers with queue structure only, and there may be only
-one active timer for any given queue structure.  To register timer
-event, libdns will call the routine giving it the query structure
-in question and non\-zero \fItimeout\fR argument.  When a timer is
-not needed anymore, libdns de\-registers it by calling the same
-routine with zero \fItimeout\fR.  When a timer expires, an application
-should de\-register timer event and call \fBdns_tmevent\fR() routine
-with the query structure as an argument.
-Other, non\-callback timer usage is provided too, see below.
+a shortcut for \fBdns_initparse\fR() followed by \fBdns_nextrr\fR(), convinient
+for usage in for\-loops.
 .RE
 
 .PP
 .nf
-void \fBdns_tmevent\fR(struct dns_query *\fIq\fR, time_t \fInow\fR);
+int \fBdns_stdrr_size\fR(const struct dns_parse *\fIp\fR);
 .fi
 .RS
-routine which should be called from event\-driven application
-event loop when a timer set using routine set up by
-\fBdns_set_cbck\fR() expires.
-.RE
-
-.PP
-.B XXXX TODO: some more resolver context routines, like dns_set_dbgfn(), dns_numreq() etc.
-
-.SS "The Query Structure"
-
-The \fBstruct\ dns_query\fR query structure is an opaque object used by dns
-library to perform queries.  The query object is owned by application.
-
-.SS "Making Generic Queries"
-
-.PP
-There are two ways to perform DNS queries: traditional syncronous
-way, when libdns performs all the necessary processing and return
-control to the application only when the query completes, and
-asyncronous way, when an application submits one or more queries
-to the library using given resolver context, and waits for completion
-by monitoring filedescriptor used by library and calling library
-routines to process input on that filedescriptor.  Asyncronous mode
-works either with callbacks, when the library calls application\-supplied
-callback routine upon query completion, or an application may "polls"
-the library, asking to return the next completed query when the
-socket becomes readable or timeout occurs.
-
-.PP
-Queries are submitted to the library in a form of \fBstruct\ dns_query\fR.
-To perform asyncronous query, an application allocates memory for the
-\fIquery structure\fR and passes it to the library using \fBdns_submit\fR()
-routines, together with all the query parameters.  When the query completes,
-library will call application\-supplied callback routine, giving it the
-query in question, result status value and dynamically allocated result,
-which will be either raw DNS packet or, if applicatin requested parsing
-the result by specifying non-NULL parse routine, ready-to-use type-specific
-structure.  It is the application who's responsible for freeing the result
-memory.  Alternatively, an application may pass NULL for the query callback
-routine, in which case it will be able to retrieve completed queries using
-\fBdns_pick\fR() routine, wich retrieves the same information as callback
-receives.  After the query completes, an application may free query
-structure or reuse it for other queries.
-.PP
-In case of error, query completion \fBstatus\fR will contain one of the
-following values:
-.IP \fBDNS_E_TEMPFAIL\fR
-temporary error, the resolver nameserver was not able to
-process our query or timed out.
-.IP \fBDNS_E_PROTOCOL\fR
-protocol error, a nameserver returned malformed reply.
-.IP \fBDNS_E_NXDOMAIN\fR
-the domain name does not exist.
-.IP \fBDNS_E_NODATA\fR
-there is no data of requested type found.
-.IP \fBDNS_E_NOMEM\fR
-out of memory while processing request.
-.IP \fBDNS_E_BADQUERY\fR
-some aspect of the query (most common is the domain name in question)
-is invalid, and the library can't even start a query.
-
-.PP
-.nf
-int \fBdns_submit_dn\fR(\fIctx\fR, \fIq\fR,
-     const unsigned char *\fIdn\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR,
-     \fIcbck\fR, \fIparse\fR, \fInow\fR)
-int \fBdns_submit_p\fR(\fIctx\fR, \fIq\fR,
-     const char *\fIname\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR,
-     \fIcbck\fR, \fIparse\fR, \fInow\fR)
-   struct dns_ctx *\fIctx\fR;
-   struct dns_query *\fIq\fR;
-   enum dns_class \fIqcls\fR;
-   enum dns_type \fIqtyp\fR;
-   int \fIflags\fR;
-   dns_query_fn *\fIcbck\fR;
-   dns_parse_fn *\fIparse\fR;
-   time_t \fInow\fR;
-.fi
-.RS
-submit query \fIq\fR for processing for the given resolver context \fIctx\fR.
-Two routines differs only in 3rd argument, which is domain name in either
-DN format (\fIdn\fR) or asciiz string (\fIname\fR).  The query will be
-performed for the given domain name, with type \fIqtyp\fR in class \fIqcls\fR,
-using option bits in \fIflags\fR, using RR parsing routine pointed by
-\fIparse\fR if not-NULL, and upon completion, \fIcbck\fR function will
-be called.  The \fInow\fR argument specifies current time as returned by
-\fBtime\fR() routine, used to minimize number of system calls performed by
-an application; if \fInow\fR is 0, the routine will obtain current time by
-it's own.  In case of successeful query submission, the routine return 0.
-In case of error (which may means it was unable to open UDP socket,
-or unable to allocate memory, or when the query was invalid), the routine
-returns negative value
-.B TODO: DNS_E_XXX constants.
+return size to hold standard RRset structure information, as shown
+in \fBstruct\ dns_rr_null\fR structure (for the query and canonical
+names).  Used to calculate amount of memory to allocate for common
+part of type\-specific RR structures in parsing routines.
 .RE
 
 .PP
 .nf
-void *\fBdns_resolve_dn\fR(\fIctx\fR,
-    const unsigned char *\fIdn\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR,
-    \fIparse\fR, \fIstatusp\fR);
-void *\fBdns_resolve_p\fR(\fIctx\fR,
-    const char *\fIname\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR,
-    \fIparse\fR, \fIstatusp\fR);
-  int *\fIstatusp\fR;
+void *\fBdns_stdrr_finish\fR(struct dns_rr_null *\fIret\fR, char *\fIcp\fR,
+  const struct dns_parse *\fIp\fR);
 .fi
 .RS
-syncronous interface.  The routine performs all the steps
-necessary to resolve the given query and return the result,
-setting query completion code to *\fIstatusp\fR if it is
-non-NULL.  If there's no positive result for any reason,
-the routine return NULL.
+initializes standard RRset fields in \fIret\fR structure using buffer
+pointed to by \fIcp\fR, which should have at least as many bytes
+as \fBdns_stdrr_size\fR(\fIp\fR) returned.  Used to finalize common
+part of type\-specific RR structures in parsing routines.
 .RE
+
 .PP
-.nf
-void \fBdns_cancel\fR(struct dns_query *\fIq\fR)
-.fi
-.RS
-cancel an active query \fIq\fR.
-.RE
+See library source for usage examples of all the above low\-level routines,
+especially source of the parsing routines.
+
+.SH AUTHOR
 .PP
-.nf
-int \fBdns_active\fR(const struct dns_query *\fIq\fR)
-.fi
-.RS
-return true if the given query \fIq\fR is active, that
-is, it is queued for the processing, or false if it is not.
-.RE
+The \fBudns\fR library has been written by Michael Tokarev, mjt@corpit.ru.

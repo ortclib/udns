@@ -1,4 +1,4 @@
-/* $Id: udns_misc.c,v 1.3 2004/06/29 07:46:39 mjt Exp $
+/* $Id: udns_misc.c,v 1.4 2004/06/30 13:41:57 mjt Exp $
  */
 
 #include "udns.h"
@@ -13,14 +13,14 @@ int dns_findname(const struct dns_nameval *nv, const char *name) {
 }
 
 const char *dns_strerror(int err) {
-  if (err >= 0) return "Successeful completion";
+  if (err >= 0) return "successeful completion";
   switch(err) {
-  case DNS_E_TEMPFAIL:	return "Temporary failure in name resolution";
-  case DNS_E_PROTOCOL:	return "Protocol error";
-  case DNS_E_NXDOMAIN:	return "Domain name does not exists";
-  case DNS_E_NODATA:	return "Valid domain but no data of requested type";
-  case DNS_E_NOMEM:	return "Out of memory";
-  case DNS_E_BADQUERY:	return "Malformed query";
-  default:		return "Unknown error";
+  case DNS_E_TEMPFAIL:	return "temporary failure in name resolution";
+  case DNS_E_PROTOCOL:	return "protocol error";
+  case DNS_E_NXDOMAIN:	return "domain name does not exists";
+  case DNS_E_NODATA:	return "valid domain but no data of requested type";
+  case DNS_E_NOMEM:	return "out of memory";
+  case DNS_E_BADQUERY:	return "malformed query";
+  default:		return "unknown error";
   }
 }

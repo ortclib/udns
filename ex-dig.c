@@ -1,4 +1,4 @@
-/* $Id: ex-dig.c,v 1.3 2004/06/29 07:46:39 mjt Exp $
+/* $Id: ex-dig.c,v 1.7 2004/06/30 20:38:11 mjt Exp $
  * example dig-like application using libdns
  */
 
@@ -166,9 +166,9 @@ static int rrloop(const char *name, struct dns_parse *p, int nent, int ar) {
   struct dns_rr rr;
   if (!nent) return 0;
   printf("\n;; %s SECTION (%d):\n", name, nent);
-  p->dnsp_numrr = nent;
+  p->dnsp_nrr = nent;
   while((nent = dns_nextrr(p, &rr)) > 0) {
-    if (ar && !p->dnsp_numrr && rr.dnsrr_typ == DNS_T_OPT && !rr.dnsrr_dn[0])
+    if (ar && !p->dnsp_nrr && rr.dnsrr_typ == DNS_T_OPT && !rr.dnsrr_dn[0])
     {	/* OPT record is special */
       printf(";; EDNS0 OPTIONS (size %d): UDPsize=%d\n",
              rr.dnsrr_dsz, rr.dnsrr_cls);
@@ -207,7 +207,7 @@ static int print_packet(const unsigned char *pkt, int len) {
          dns_numqd(pkt), dns_numan(pkt),
 	 dns_numns(pkt), dns_numar(pkt));
 
-  p.dnsp_pkt = pkt; p.dnsp_pkte = pkt + len;
+  p.dnsp_pkt = pkt; p.dnsp_end = pkt + len;
   p.dnsp_cur = dns_payload(pkt);
   p.dnsp_qdn = NULL;
   p.dnsp_qcls = p.dnsp_qtyp = 0;
@@ -215,12 +215,12 @@ static int print_packet(const unsigned char *pkt, int len) {
   if (n) {
     printf(";; QUESTION SECTION (%d):\n", n);
     do {
-      if ((r = dns_getdn(pkt, &p.dnsp_cur, p.dnsp_pkte,
+      if ((r = dns_getdn(pkt, &p.dnsp_cur, p.dnsp_end,
                          p.dnsp_dnbuf, DNS_MAXDN)) <= 0)
         return r;
-      if (p.dnsp_cur + 4 > p.dnsp_pkte)
+      if (p.dnsp_cur + 4 > p.dnsp_end)
         return DNS_E_PROTOCOL;
-      printf("; %s\t%s\t%s\n",
+      printf("; %s.\t%s\t%s\n",
              dns_dntosp(p.dnsp_dnbuf),
              dns_classname(dns_get16(p.dnsp_cur+2)),
              dns_typename(dns_get16(p.dnsp_cur)));
@@ -232,22 +232,23 @@ static int print_packet(const unsigned char *pkt, int len) {
       (r = rrloop("AUTHORITY",  &p, dns_numns(pkt), 0)) < 0 ||
       (r = rrloop("ADDITIONAL", &p, dns_numar(pkt), 1)) < 0)
     return r;
+  putchar('\n');
 
   return 0;
 }
 
-void dcallback(const unsigned char *pkt, int alen) {
+static void dcallback(const unsigned char *pkt, int alen) {
   alen = print_packet(pkt, alen);
   if (alen != 0)
     printf("; ERROR\n");
 }
 
-static void qcallback(struct dns_query *q, int a, unsigned char *p) {
-  if (!p)
-    printf("unable to find %s: %s\n", dns_dntosp(q->dnsq_dn), dns_strerror(a));
+static void qcallback(struct dns_ctx *ctx, void *result, void *data) {
+  if (!result)
+    printf("unable to find %s: %s\n",
+           (char*)data, dns_strerror(dns_status(ctx)));
   else
-    free(p);
-  free(q);
+    free(result);
 }
 
 static int findcode(const char *code, const char *name, const struct dns_nameval *nvt) {
@@ -262,14 +263,13 @@ static int findcode(const char *code, const char *name, const struct dns_nameval
 int main(int argc, char **argv) {
   int n;
   time_t now;
-  struct dns_query *q;
   int qtyp = DNS_T_A;
   int qcls = DNS_C_IN;
   int flags = 0;
   int fd;
   fd_set rfd;
 
-  dns_init();
+  dns_init(0);
   dns_set_dbgfn(NULL, dcallback);
 
   while((n = getopt(argc, argv, "t:c:o:p:u:")) != EOF)
@@ -300,15 +300,14 @@ int main(int argc, char **argv) {
    default: return 1;
    }
 
+  dns_open(NULL);
   now = time(NULL);
-  for (n = optind; n < argc; ++n) {
-    q = calloc(sizeof *q, 1);
-    dns_submit_p(NULL, q, argv[n], qcls, qtyp, flags, qcallback, 0, now);
-  }
+  for (n = optind; n < argc; ++n)
+    dns_submit_p(NULL, argv[n], qcls, qtyp, flags, 0, qcallback, argv[n], now);
 
   FD_ZERO(&rfd);
-  fd = dns_open(NULL);
-  while(dns_requests(NULL)) {
+  fd = dns_sock(NULL);
+  while(dns_active(NULL)) {
     struct timeval tv;
     FD_SET(fd, &rfd);
     n = dns_timeouts(NULL, -1, now);

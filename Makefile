@@ -1,14 +1,15 @@
-# $Id: Makefile,v 1.11 2004/06/29 07:46:39 mjt Exp $
+# $Id: Makefile,v 1.15 2004/06/30 18:36:14 mjt Exp $
 # libudns Makefile
 #
 UDNS_SRCS = udns_dn.c udns_dntosp.c udns_parse.c udns_resolver.c udns_misc.c \
 	udns_rr_a.c udns_rr_ptr.c udns_rr_mx.c udns_rr_txt.c udns_bl.c
 UDNS_HDRS = udns.h
 UDNS_GENS = udns_codes.c
-UDNS_DIST = udns.h udns.3 $(UDNS_SRCS) Makefile ex-dig.c
+UDNS_DIST = udns.h udns.3 $(UDNS_SRCS) Makefile TODO ex-dig.c
 UDNS_OBJS = $(UDNS_SRCS:.c=.o) $(UDNS_GENS:.c=.o)
 UDNS_NAME = udns
-UDNS_VERS = 0.0.1
+UDNS_LIBS = lib$(UDNS_NAME).a
+UDNS_VERS = 0.0.2
 
 CFLAGS = -Wall -W -Wmissing-prototypes -O2 -DHAVE_POLL
 AWK = awk
@@ -54,10 +55,10 @@ $(UDNS_NAME).3.html: $(UDNS_NAME).3
 
 $(UDNS_OBJS): $(UDNS_HDRS)
 
-dist: lib$(UDNS_NAME)-$(UDNS_VERS).tar.gz
-lib$(UDNS_NAME)-$(UDNS_VERS).tar.gz: $(UDNS_DIST)
+dist: $(UDNS_NAME)-$(UDNS_VERS).tar.gz
+$(UDNS_NAME)-$(UDNS_VERS).tar.gz: $(UDNS_DIST)
 	tar cvfz $@ $(UDNS_DIST)
 clean:
-	rm -f *.o $(UDNS_GENS)
+	rm -f $(UDNS_OBJS) $(UDNS_GENS)
 distclean: clean
-	rm -f lib$(UDNS_NAME).a $(UDNS_NAME).3.html
+	rm -f $(UDNS_LIBS) $(UDNS_NAME).3.html

@@ -1,4 +1,4 @@
-/* $Id: udns_parse.c,v 1.4 2004/06/29 07:46:39 mjt Exp $
+/* $Id: udns_parse.c,v 1.9 2004/06/30 20:44:48 mjt Exp $
  * raw DNS packet parsing routines
  */
 
@@ -71,16 +71,14 @@ noroom:
   return dnsiz < DNS_MAXDN ? 0 : -1;
 }
 
-int dns_initparse(struct dns_parse *p,
-                  const unsigned char *qdn, int qcls, int qtyp,
+int dns_initparse(struct dns_parse *p, int qcls, int qtyp,
                   const unsigned char *pkt, const unsigned char *pkte) {
   p->dnsp_pkt = pkt;
-  p->dnsp_pkte = pkte;
-  if ((p->dnsp_cur = dns_skipdn(dns_payload(pkt), pkte)) == 0 ||
-      (p->dnsp_cur += DNS_HSIZE + 2) > pkte)
-    return -1;
-  p->dnsp_numrr = dns_numan(pkt);
-  p->dnsp_qdn = qdn;
+  p->dnsp_end = pkte;
+  p->dnsp_cur = dns_payload(pkt) + dns_dnlen(dns_payload(pkt)) + 4;
+  p->dnsp_nrr = dns_numan(pkt);
+  p->dnsp_ttl = 0xffffffffu;
+  p->dnsp_qdn = dns_payload(pkt);
   p->dnsp_qcls = qcls;
   p->dnsp_qtyp = qtyp;
   return 1;
@@ -88,12 +86,12 @@ int dns_initparse(struct dns_parse *p,
 
 int dns_nextrr(struct dns_parse *p, struct dns_rr *rr) {
   const unsigned char *cur = p->dnsp_cur;
-  while(p->dnsp_numrr > 0) {
-    --p->dnsp_numrr;
-    if (dns_getdn(p->dnsp_pkt, &cur, p->dnsp_pkte,
+  while(p->dnsp_nrr > 0) {
+    --p->dnsp_nrr;
+    if (dns_getdn(p->dnsp_pkt, &cur, p->dnsp_end,
                   rr->dnsrr_dn, sizeof(rr->dnsrr_dn)) <= 0)
       return -1;
-    if (cur + 10 > p->dnsp_pkte)
+    if (cur + 10 > p->dnsp_end)
       return -1;
     rr->dnsrr_typ = dns_get16(cur);
     rr->dnsrr_cls = dns_get16(cur+2);
@@ -101,27 +99,49 @@ int dns_nextrr(struct dns_parse *p, struct dns_rr *rr) {
     rr->dnsrr_dsz = dns_get16(cur+8);
     rr->dnsrr_dptr = cur = cur + 10;
     rr->dnsrr_dend = cur = cur + rr->dnsrr_dsz;
-    if (cur > p->dnsp_pkte)
+    if (cur > p->dnsp_end)
       return -1;
     if (p->dnsp_qdn && !dns_dnequal(p->dnsp_qdn, rr->dnsrr_dn))
       continue;
     if ((!p->dnsp_qcls || p->dnsp_qcls == rr->dnsrr_cls) &&
         (!p->dnsp_qtyp || p->dnsp_qtyp == rr->dnsrr_typ)) {
       p->dnsp_cur = cur;
+      if (p->dnsp_ttl > rr->dnsrr_ttl) p->dnsp_ttl = rr->dnsrr_ttl;
       return 1;
     }
     if (p->dnsp_qdn && rr->dnsrr_typ == DNS_T_CNAME) {
-      dns_dntodn(rr->dnsrr_dn, p->dnsp_dnbuf, sizeof(p->dnsp_dnbuf));
+      if (dns_getdn(p->dnsp_pkt, &rr->dnsrr_dptr, rr->dnsrr_dend,
+                    p->dnsp_dnbuf, sizeof(p->dnsp_dnbuf)) <= 0 ||
+          rr->dnsrr_dptr != rr->dnsrr_dend)
+        return -1;
       p->dnsp_qdn = p->dnsp_dnbuf;
+      if (p->dnsp_ttl > rr->dnsrr_ttl) p->dnsp_ttl = rr->dnsrr_ttl;
     }
   }
   p->dnsp_cur = cur;
   return 0;
 }
 
-int dns_firstrr(struct dns_parse *p, struct dns_rr *rr,
-                const unsigned char *searchdn, int qcls, int qtyp,
+int dns_firstrr(struct dns_parse *p, struct dns_rr *rr, int qcls, int qtyp,
                 const unsigned char *pkt, const unsigned char *pkte) {
-  dns_initparse(p, searchdn, qcls, qtyp, pkt, pkte);
+  dns_initparse(p, qcls, qtyp, pkt, pkte);
   return dns_nextrr(p, rr);
+}
+
+int dns_stdrr_size(const struct dns_parse *p) {
+  return
+    dns_dntop_size(p->dnsp_qdn) +
+    (p->dnsp_qdn == dns_payload(p->dnsp_pkt) ? 0 :
+     dns_dntop_size(dns_payload(p->dnsp_pkt)));
+}
+
+void *dns_stdrr_finish(struct dns_rr_null *ret, char *cp,
+                       const struct dns_parse *p) {
+  cp += dns_dntop(p->dnsp_qdn, (ret->dnsn_cname = cp), DNS_MAXNAME);
+  if (p->dnsp_qdn == dns_payload(p->dnsp_pkt))
+    ret->dnsn_qname = ret->dnsn_cname;
+  else
+    dns_dntop(dns_payload(p->dnsp_pkt), (ret->dnsn_qname = cp), DNS_MAXNAME);
+  ret->dnsn_ttl = p->dnsp_ttl;
+  return ret;
 }
