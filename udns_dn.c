@@ -1,4 +1,4 @@
-/* $Id: udns_dn.c,v 1.5 2005/04/19 21:48:09 mjt Exp $
+/* $Id: udns_dn.c,v 1.6 2005/09/12 10:55:21 mjt Exp $
    domain names manipulation routines
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -343,8 +343,8 @@ toolong:
 int main(int argc, char **argv) {
   int i;
   int sz;
-  unsigned char dn[DNS_MAXDN+10];
-  unsigned char *dl, *dp;
+  dnsc_t dn[DNS_MAXDN+10];
+  dnsc_t *dl, *dp;
   int isabs;
 
   sz = (argc > 1) ? atoi(argv[1]) : 0;

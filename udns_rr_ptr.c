@@ -1,4 +1,4 @@
-/* $Id: udns_rr_ptr.c,v 1.13 2005/04/20 06:44:34 mjt Exp $
+/* $Id: udns_rr_ptr.c,v 1.15 2005/09/12 11:21:06 mjt Exp $
    parse/query PTR records
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -79,7 +79,7 @@ dns_parse_ptr(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
 struct dns_query *
 dns_submit_a4ptr(struct dns_ctx *ctx, const struct in_addr *addr,
                  dns_query_ptr_fn *cbck, void *data) {
-  unsigned char dn[DNS_A4RSIZE];
+  dnsc_t dn[DNS_A4RSIZE];
   dns_a4todn(addr, 0, dn, sizeof(dn));
   return
     dns_submit_dn(ctx, dn, DNS_C_IN, DNS_T_PTR, DNS_NOSRCH,
@@ -95,7 +95,7 @@ dns_resolve_a4ptr(struct dns_ctx *ctx, const struct in_addr *addr) {
 struct dns_query *
 dns_submit_a6ptr(struct dns_ctx *ctx, const struct in6_addr *addr,
                  dns_query_ptr_fn *cbck, void *data) {
-  unsigned char dn[DNS_A6RSIZE];
+  dnsc_t dn[DNS_A6RSIZE];
   dns_a6todn(addr, 0, dn, sizeof(dn));
   return
     dns_submit_dn(ctx, dn, DNS_C_IN, DNS_T_PTR, DNS_NOSRCH,

@@ -1,4 +1,4 @@
-/* $Id: udns_bl.c,v 1.9 2005/04/20 06:44:34 mjt Exp $
+/* $Id: udns_bl.c,v 1.10 2005/09/12 10:55:21 mjt Exp $
    DNSBL stuff
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -30,7 +30,7 @@ struct dns_query *
 dns_submit_a4dnsbl(struct dns_ctx *ctx,
                    const struct in_addr *addr, const char *dnsbl,
                    dns_query_a4_fn *cbck, void *data) {
-  unsigned char dn[DNS_MAXDN];
+  dnsc_t dn[DNS_MAXDN];
   if (dns_a4ptodn(addr, dnsbl, dn, sizeof(dn)) <= 0) {
     dns_setstatus(ctx, DNS_E_BADQUERY);
     return NULL;
@@ -44,7 +44,7 @@ struct dns_query *
 dns_submit_a4dnsbl_txt(struct dns_ctx *ctx,
                        const struct in_addr *addr, const char *dnsbl,
                        dns_query_txt_fn *cbck, void *data) {
-  unsigned char dn[DNS_MAXDN];
+  dnsc_t dn[DNS_MAXDN];
   if (dns_a4ptodn(addr, dnsbl, dn, sizeof(dn)) <= 0) {
     dns_setstatus(ctx, DNS_E_BADQUERY);
     return NULL;
@@ -73,7 +73,7 @@ struct dns_query *
 dns_submit_a6dnsbl(struct dns_ctx *ctx,
                    const struct in6_addr *addr, const char *dnsbl,
                    dns_query_a4_fn *cbck, void *data) {
-  unsigned char dn[DNS_MAXDN];
+  dnsc_t dn[DNS_MAXDN];
   if (dns_a6ptodn(addr, dnsbl, dn, sizeof(dn)) <= 0) {
     dns_setstatus(ctx, DNS_E_BADQUERY);
     return NULL;
@@ -87,7 +87,7 @@ struct dns_query *
 dns_submit_a6dnsbl_txt(struct dns_ctx *ctx,
                        const struct in6_addr *addr, const char *dnsbl,
                        dns_query_txt_fn *cbck, void *data) {
-  unsigned char dn[DNS_MAXDN];
+  dnsc_t dn[DNS_MAXDN];
   if (dns_a6ptodn(addr, dnsbl, dn, sizeof(dn)) <= 0) {
     dns_setstatus(ctx, DNS_E_BADQUERY);
     return NULL;
@@ -112,7 +112,7 @@ dns_resolve_a6dnsbl_txt(struct dns_ctx *ctx,
 }
 
 static int
-dns_rhsbltodn(const char *name, const char *rhsbl, unsigned char dn[DNS_MAXDN])
+dns_rhsbltodn(const char *name, const char *rhsbl, dnsc_t dn[DNS_MAXDN])
 {
   int l = dns_sptodn(name, dn, DNS_MAXDN);
   if (l <= 0) return 0;
@@ -124,7 +124,7 @@ dns_rhsbltodn(const char *name, const char *rhsbl, unsigned char dn[DNS_MAXDN])
 struct dns_query *
 dns_submit_rhsbl(struct dns_ctx *ctx, const char *name, const char *rhsbl,
                  dns_query_a4_fn *cbck, void *data) {
-  unsigned char dn[DNS_MAXDN];
+  dnsc_t dn[DNS_MAXDN];
   if (!dns_rhsbltodn(name, rhsbl, dn)) {
     dns_setstatus(ctx, DNS_E_BADQUERY);
     return NULL;
@@ -136,7 +136,7 @@ dns_submit_rhsbl(struct dns_ctx *ctx, const char *name, const char *rhsbl,
 struct dns_query *
 dns_submit_rhsbl_txt(struct dns_ctx *ctx, const char *name, const char *rhsbl,
                      dns_query_txt_fn *cbck, void *data) {
-  unsigned char dn[DNS_MAXDN];
+  dnsc_t dn[DNS_MAXDN];
   if (!dns_rhsbltodn(name, rhsbl, dn)) {
     dns_setstatus(ctx, DNS_E_BADQUERY);
     return NULL;

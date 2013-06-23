@@ -1,4 +1,4 @@
-/* $Id: udns_parse.c,v 1.13 2005/04/19 21:48:09 mjt Exp $
+/* $Id: udns_parse.c,v 1.14 2005/09/12 10:55:21 mjt Exp $
    raw DNS packet parsing routines
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -112,7 +112,7 @@ dns_initparse(struct dns_parse *p, dnscc_t *qdn,
 }
 
 int dns_nextrr(struct dns_parse *p, struct dns_rr *rr) {
-  const unsigned char *cur = p->dnsp_cur;
+  dnscc_t *cur = p->dnsp_cur;
   while(p->dnsp_rrl > 0) {
     --p->dnsp_rrl;
     if (dns_getdn(p->dnsp_pkt, &cur, p->dnsp_end,

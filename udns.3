@@ -1,4 +1,4 @@
-.\" $Id: udns.3,v 1.24 2005/04/20 08:57:56 mjt Exp $
+.\" $Id: udns.3,v 1.25 2005/09/12 12:05:12 mjt Exp $
 .\" udns library manpage
 .\"
 .\" Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -597,10 +597,10 @@ typedef void
   \fBdns_query_a4_fn\fR(\fIctx\fR, struct dns_rr_a4 *\fIresult\fR, \fIdata\fR)
 dns_parse_fn \fBdns_parse_a4\fB;
 struct dns_query *
-\fBdns_submit_a4\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR,
+\fBdns_submit_a4\fB(\fIctx\fR, const char *\fIname\fR, int \fIflags\fR,
    dns_query_a4_fn *\fIcbck\fR, \fIdata\fR);
 struct dns_rr_a4 *
-\fBdns_resolve_a4\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR);
+\fBdns_resolve_a4\fB(\fIctx\fR, const char *\fIname\fR, int \fIflags\fR);
 .fi
 .PP
 The \fBdns_rr_a4\fR structure holds a result of an \fBIN A\fR query,
@@ -630,10 +630,10 @@ typedef void
   \fBdns_query_a6_fn\fR(\fIctx\fR, struct dns_rr_a6 *\fIresult\fR, \fIdata\fR)
 dns_parse_fn \fBdns_parse_a6\fB;
 struct dns_query *
-\fBdns_submit_a6\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR,
+\fBdns_submit_a6\fB(\fIctx\fR, const char *\fIname\fR, int \fIflags\fR,
    dns_query_a6_fn *\fIcbck\fR, \fIdata\fR);
 struct dns_rr_a6 *
-\fBdns_resolve_a6\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR);
+\fBdns_resolve_a6\fB(\fIctx\fR, const char *\fIname\fR, int \fIflags\fR);
 .fi
 .PP
 The \fBdns_rr_a6\fR structure holds a result of an \fBIN AAAA\fR query,
@@ -704,10 +704,10 @@ typedef void
   \fBdns_query_mx_fn\fR(\fIctx\fR, struct dns_rr_mx *\fIresult\fR, \fIdata\fR)
 dns_parse_fn \fBdns_parse_mx\fB;
 struct dns_query *
-\fBdns_submit_mx\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR,
+\fBdns_submit_mx\fB(\fIctx\fR, const char *\fIname\fR, int \fIflags\fR,
    dns_query_mx_fn *\fIcbck\fR, \fIdata\fR);
 struct dns_rr_mx *
-\fBdns_resolve_mx\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR);
+\fBdns_resolve_mx\fB(\fIctx\fR, const char *\fIname\fR, int \fIflags\fR);
 .fi
 .PP
 The \fBdns_rr_mx\fR structure holds a result of an IN MX query, which
@@ -735,23 +735,23 @@ struct \fBdns_rr_txt\fR {       /* TXT RRset */
   char *\fBdnstxt_cname\fR;     /* canonical name */
   unsigned \fBdnstxt_ttl\fR;    /* Time-To-Live (TTL) value */
   int \fBdnstxt_nrr\fR;         /* number of text records in the set */
-  struct dns_txt \fBdnstxt_txt\fR[]; /* array of mail exchangers */
+  struct dns_txt \fBdnstxt_txt\fR[]; /* array of TXT records */
 };
 typedef void
   \fBdns_query_txt_fn\fR(\fIctx\fR, struct dns_rr_txt *\fIresult\fR, \fIdata\fR)
 dns_parse_fn \fBdns_parse_txt\fB;
 struct dns_query *
-\fBdns_submit_txt\fB(\fIctx\fR, const char \fIname\fR, enum dns_class \fIqcls\fR,
+\fBdns_submit_txt\fB(\fIctx\fR, const char *\fIname\fR, enum dns_class \fIqcls\fR,
    int \fIflags\fR, dns_query_txt_fn *\fIcbck\fR, \fIdata\fR);
 struct dns_rr_txt *
-\fBdns_resolve_txt\fB(\fIctx\fR, const char \fIname\fR,
+\fBdns_resolve_txt\fB(\fIctx\fR, const char *\fIname\fR,
              enum dns_class \fIqcls\fR, int \fIflags\fR);
 .fi
 .PP
-The \fBdns_rr_txt\fR structure holds a result of an IN MX query, which
-is an array of mail exchangers for a given domain.  Callback routine for IN MX
-queries expected to be of type \fBdns_query_txt_fn\fR, which expects pointer to
-\fBdns_rr_txt\fR structure as query result instead of raw DNS packet.
+The \fBdns_rr_txt\fR structure holds a result of a TXT query, which is an
+array of text records for a given domain name.  Callback routine for TXT
+queries expected to be of type \fBdns_query_txt_fn\fR, which expects pointer
+to \fBdns_rr_txt\fR structure as query result instead of raw DNS packet.
 The \fBdns_parse_txt\fR() is used to convert raw DNS reply packet into
 \fBdns_rr_txt\fR structure (it is used internally and may be used directly too
 with generic query interface).  Routines \fBdns_submit_txt\fR() and
@@ -760,10 +760,55 @@ manner.  The \fIname\fR parameter is the domain name in question, and
 \fIflags\fR is query flags bitmask, with one bit, DNS_NOSRCH, of practical
 interest (if the \fIname\fR is absolute, that is, it ends up with a dot,
 DNS_NOSRCH flag will be set automatically).  Note that each TXT string
-as represented by \fBstruct\ dns_txt\fR, while zero-terminated (and the
+is represented by \fBstruct\ dns_txt\fR, while zero-terminated (and the
 len field of the structure does not include the terminator), may contain
 embedded null characters -- content of TXT records is not interpreted
 by the library in any way.
+
+.SS "SRV Queries"
+.PP
+.nf
+struct \fBdns_srv\fR {          /* single SRV record */
+  int \fBpriority\fR;           /* priority of the record */
+  int \fBweight\fR;             /* weight of the record */
+  int \fBport\fR;               /* the port number to connect to */
+  char *\fBname\fR;             /* target host name */
+};
+struct \fBdns_rr_srv\fR {       /* SRV RRset */
+  char *\fBdnssrv_qname\fR;     /* original query name */
+  char *\fBdnssrv_cname\fR;     /* canonical name */
+  unsigned \fBdnssrv_ttl\fR;    /* Time-To-Live (TTL) value */
+  int \fBdnssrv_nrr\fR;         /* number of text records in the set */
+  struct dns_srv \fBdnssrv_srv\fR[]; /* array of SRV records */
+};
+typedef void
+  \fBdns_query_srv_fn\fR(\fIctx\fR, struct dns_rr_srv *\fIresult\fR, \fIdata\fR)
+dns_parse_fn \fBdns_parse_srv\fB;
+struct dns_query *
+\fBdns_submit_srv\fB(\fIctx\fR, const char *\fIname\fR, const char *\fIservice\fR, const char *\fIprotocol\fR,
+   int \fIflags\fR, dns_query_txt_fn *\fIcbck\fR, \fIdata\fR);
+struct dns_rr_srv *
+\fBdns_resolve_srv\fB(\fIctx\fR, const char *\fIname\fR, const char *\fIservice\fR, const char *\fIprotocol\fR,
+             int \fIflags\fR);
+.fi
+.PP
+The \fBdns_rr_srv\fR structure holds a result of an IN SRV (rfc2782) query,
+which is an array of servers (together with port numbers) which are performing
+operations for a given \fIservice\fR using given \fIprotocol\fR on a target
+domain \fIname\fR.  Callback routine for IN SRV queries expected to be of type
+\fBdns_query_srv_fn\fR, which expects pointer to \fBdns_rr_srv\fR structure as
+query result instead of raw DNS packet.  The \fBdns_parse_srv\fR() is used to
+convert raw DNS reply packet into \fBdns_rr_srv\fR structure (it is used
+internally and may be used directly too with generic query interface).
+Routines \fBdns_submit_srv\fR() and \fBdns_resolve_srv\fR() are used to
+perform IN SRV queries in a type-safe manner.  The \fIname\fR parameter
+is the domain name in question, \fIservice\fR and \fRprotocl\fR specifies the
+service and the protocol in question (the library will construct query DN
+according to rfc2782 rules) and may be NULL (in this case the library
+assumes \fIname\fR parameter holds the complete SRV query), and
+\fIflags\fR is query flags bitmask, with one bit, DNS_NOSRCH, of practical
+interest (if the \fIname\fR is absolute, that is, it ends up with a dot,
+DNS_NOSRCH flag will be set automatically).
 
 .SS "DNSBL Interface"
 .PP

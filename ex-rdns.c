@@ -1,4 +1,4 @@
-/* $Id: ex-rdns.c,v 1.5 2005/05/05 19:16:43 mjt Exp $
+/* $Id: ex-rdns.c,v 1.6 2005/05/07 12:21:42 mjt Exp $
    parallel rDNS resolver example - read IP addresses from stdin,
    write domain names to stdout
  
@@ -50,6 +50,7 @@ static void dnscb(struct dns_ctx *ctx, struct dns_rr_ptr *rr, void *data) {
     for(i = 0; i < rr->dnsptr_nrr; ++i)
       printf(" %s", rr->dnsptr_ptr[i]);
     putchar('\n');
+    free(rr);
   }
   else
     fprintf(stderr, "%s: %s\n", ip, dns_strerror(dns_status(ctx)));

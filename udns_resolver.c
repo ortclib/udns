@@ -1,4 +1,4 @@
-/* $Id: udns_resolver.c,v 1.51 2005/05/05 19:16:43 mjt Exp $
+/* $Id: udns_resolver.c,v 1.53 2005/09/12 10:23:08 mjt Exp $
    resolver stuff (main module)
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -1143,8 +1143,11 @@ again:
       break;
     }
     /* the only case where we may succeed */
-    if (q->dnsq_parse)
+    if (q->dnsq_parse) {
       r = q->dnsq_parse(dns_payload(q->dnsq_buf), pbuf, pcur, pend, &result);
+      if (r < 0)
+        result = NULL;
+    }
     else if ((result = malloc(r)) != NULL)
       memcpy(result, pbuf, r);
     else

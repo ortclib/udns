@@ -1,4 +1,4 @@
-/* $Id: udns.h,v 1.35 2005/04/21 15:55:55 mjt Exp $
+/* $Id: udns.h,v 1.37 2005/09/12 12:09:10 mjt Exp $
    header file for the UDNS library.
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -23,7 +23,7 @@
 
 #ifndef UDNS_VERSION	/* include guard */
 
-#define UDNS_VERSION "0.0.7"
+#define UDNS_VERSION "0.0.8"
 
 #ifdef WIN32
 # ifdef UDNS_DYNAMIC_LIBRARY
@@ -610,6 +610,32 @@ dns_submit_txt(struct dns_ctx *ctx, const char *name, int qcls, int flags,
 /* resolve TXT query */
 UDNS_API struct dns_rr_txt *
 dns_resolve_txt(struct dns_ctx *ctx, const char *name, int qcls, int flags);
+
+
+struct dns_srv {	/* single SRV RR */
+  int priority;		/* SRV priority */
+  int weight;		/* SRV weight */
+  int port;		/* SRV port */
+  char *name;		/* SRV name */
+};
+struct dns_rr_srv {		/* the SRV RRset */
+  dns_rr_common(dnssrv);
+  struct dns_srv *dnssrv_srv;	/* array of SRVes */
+};
+UDNS_API dns_parse_fn dns_parse_srv;	/* SRV RR parsing routine */
+typedef void				/* SRV RR callback */
+dns_query_srv_fn(struct dns_ctx *ctx, struct dns_rr_srv *result, void *data);
+/* submit SRV IN query */
+UDNS_API struct dns_query *
+dns_submit_srv(struct dns_ctx *ctx,
+               const char *name, const char *srv, const char *proto,
+               int flags, dns_query_srv_fn *cbck, void *data);
+/* resolve SRV IN query */
+UDNS_API struct dns_rr_srv *
+dns_resolve_srv(struct dns_ctx *ctx,
+                const char *name, const char *srv, const char *proto,
+                int flags);
+
 
 UDNS_API struct dns_query *
 dns_submit_a4dnsbl(struct dns_ctx *ctx,
