@@ -1,4 +1,4 @@
-/* $Id: udns.h,v 1.25 2005/04/05 22:51:32 mjt Exp $
+/* $Id: udns.h,v 1.30 2005/04/08 15:52:58 mjt Exp $
    header file for the UDNS library.
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -23,33 +23,37 @@
 
 #ifndef UDNS_VERSION	/* include guard */
 
-#define UDNS_VERSION "0.0.5"
+#define UDNS_VERSION "0.0.6"
 
 #ifdef WIN32
-# include <winsock2.h>		/* includes <windows.h> */
-# include <ws2tcpip.h>		/* needed for struct in6_addr */
 # ifdef UDNS_DYNAMIC_LIBRARY
 #  ifdef DNS_LIBRARY_BUILD
 #   define UDNS_API __declspec(dllexport)
+#   define UDNS_DATA_API __declspec(dllexport)
 #  else
 #   define UDNS_API __declspec(dllimport)
+#   define UDNS_DATA_API __declspec(dllimport)
 #  endif
 # endif
-#else
-# include <sys/types.h>
-# include <sys/socket.h>
-# include <netinet/in.h>
 #endif
 
 #ifndef UDNS_API
 # define UDNS_API
 #endif
-
-#ifndef AF_INET6
-struct in6_addr {
-  unsigned char s6_addr[16];
-};
+#ifndef UDNS_DATA_API
+# define UDNS_DATA_API
 #endif
+
+#include <sys/types.h>		/* for time_t */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* forward declarations if sockets stuff isn't #include'd */
+struct in_addr;
+struct in6_addr;
+struct sockaddr;
 
 /**************************************************************************/
 /**************** Common definitions **************************************/
@@ -163,7 +167,7 @@ dns_ptodn(const char *name, unsigned namelen,
 /* simpler form of dns_ptodn() */
 #define dns_sptodn(name,dn,dnsiz) dns_ptodn((name),0,(dn),(dnsiz),0)
 
-UDNS_API extern const unsigned char dns_inaddr_arpa_dn[14];
+UDNS_DATA_API extern const unsigned char dns_inaddr_arpa_dn[14];
 #define DNS_A4RSIZE	30
 UDNS_API int
 dns_a4todn(const struct in_addr *addr, const unsigned char *tdn,
@@ -174,7 +178,7 @@ dns_a4ptodn(const struct in_addr *addr, const char *tname,
 UDNS_API unsigned char *
 dns_a4todn_(const struct in_addr *addr, unsigned char *dn, unsigned char *dne);
 
-UDNS_API extern const unsigned char dns_ip6_arpa_dn[10];
+UDNS_DATA_API extern const unsigned char dns_ip6_arpa_dn[10];
 #define DNS_A6RSIZE	74
 UDNS_API int
 dns_a6todn(const struct in6_addr *addr, const unsigned char *tdn,
@@ -344,7 +348,7 @@ dns_rewind(struct dns_parse *p);
 /**************** Resolver Context ****************************************/
 
 /* default resolver context */
-UDNS_API extern struct dns_ctx dns_defctx;
+UDNS_DATA_API extern struct dns_ctx dns_defctx;
 
 /* initialize default resolver context and open it if do_open is true.
  * <0 on failure. */
@@ -396,8 +400,12 @@ enum dns_flags {
 };
 
 /* set the debug function pointer */
+typedef void
+(dns_dbgfn)(int code, const struct sockaddr *sa, unsigned salen,
+            const unsigned char *pkt, int plen,
+            const struct dns_query *q, void *data);
 UDNS_API void
-dns_set_dbgfn(struct dns_ctx *ctx, void (*fn)(const unsigned char*,int));
+dns_set_dbgfn(struct dns_ctx *ctx, dns_dbgfn *dbgfn);
 
 /* open and return UDP socket */
 UDNS_API int
@@ -656,9 +664,9 @@ struct dns_nameval {
   const char *name;
 };
 
-UDNS_API extern const struct dns_nameval dns_classtab[];
-UDNS_API extern const struct dns_nameval dns_typetab[];
-UDNS_API extern const struct dns_nameval dns_rcodetab[];
+UDNS_DATA_API extern const struct dns_nameval dns_classtab[];
+UDNS_DATA_API extern const struct dns_nameval dns_typetab[];
+UDNS_DATA_API extern const struct dns_nameval dns_rcodetab[];
 UDNS_API int
 dns_findname(const struct dns_nameval *nv, const char *name);
 #define dns_findclassname(class) dns_findname(dns_classtab, (class))
@@ -671,5 +679,9 @@ UDNS_API const char *dns_rcodename(enum dns_rcode rcode);
 const char *_dns_format_code(char *buf, const char *prefix, int code);
 
 UDNS_API const char *dns_strerror(int errnum);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif	/* include guard */

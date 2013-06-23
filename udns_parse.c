@@ -1,4 +1,4 @@
-/* $Id: udns_parse.c,v 1.11 2005/04/05 22:51:32 mjt Exp $
+/* $Id: udns_parse.c,v 1.12 2005/04/07 23:58:27 mjt Exp $
    raw DNS packet parsing routines
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -34,9 +34,8 @@ dns_skipdn(const unsigned char *cur, const unsigned char *pkte) {
     c = *cur++;
     if (!c)
       return cur;
-    if (c & 192) {		/* jump */
+    if (c & 192)		/* jump */
       return cur + 1 >= pkte ? NULL : cur + 1;
-    }
     cur += c;
   }
 }

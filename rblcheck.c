@@ -1,4 +1,4 @@
-/* $Id: rblcheck.c,v 1.5 2005/04/05 22:51:32 mjt Exp $
+/* $Id: rblcheck.c,v 1.6 2005/04/06 01:06:11 mjt Exp $
    dnsbl (rbl) checker application
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -30,6 +30,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
+#include <sys/time.h>
 #include <errno.h>
 #include "udns.h"
 

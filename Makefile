@@ -1,4 +1,5 @@
-# $Id: Makefile,v 1.25 2005/04/06 00:01:15 mjt Exp $
+#! /usr/bin/make -rf
+# $Id: Makefile,v 1.33 2005/04/08 15:52:58 mjt Exp $
 # libudns Makefile
 #
 # Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -19,64 +20,68 @@
 # write to the Free Software Foundation, Inc., 59 Temple Place,
 # Suite 330, Boston, MA  02111-1307  USA
 
-UDNS_VERS   = 0.0.5
-UDNS_SRCS   = udns_dn.c udns_dntosp.c udns_parse.c udns_resolver.c udns_misc.c \
+VERS   = 0.0.6
+SRCS   = udns_dn.c udns_dntosp.c udns_parse.c udns_resolver.c udns_misc.c \
 	udns_rr_a.c udns_rr_ptr.c udns_rr_mx.c udns_rr_txt.c udns_bl.c \
 	udns_codes.c
-UDNS_USRCS  = dnsget.c rblcheck.c ex-dig.c
-UDNS_DIST   = COPYING.LGPL udns.h udns.3 $(UDNS_SRCS) $(UDNS_USRCS) \
+USRCS  = dnsget.c rblcheck.c ex-rdns.c
+DIST   = COPYING.LGPL udns.h udns.3 $(SRCS) $(USRCS) \
 	Makefile TODO
 
-UDNS_OBJS   = $(UDNS_SRCS:.c=.o) $(UDNS_GEN:.c=.o)
-UDNS_LIB    = libudns.a
+OBJS   = $(SRCS:.c=.o) $(GEN:.c=.o)
+LIB    = libudns.a
 
-UDNS_SOVER  = 0
-UDNS_SOBJS  = $(UDNS_OBJS:.o=.lo)
-UDNS_SOLIB  = libudns.so
-UDNS_SOLIBV = $(UDNS_SOLIB).$(UDNS_SOVER)
+SOVER  = 0
+SOBJS  = $(OBJS:.o=.lo)
+SOLIB  = libudns.so
+SOLIBV = $(SOLIB).$(SOVER)
 
-UDNS_LIBS   = $(UDNS_LIB) $(UDNS_SOLIBV) $(UDNS_SOLIB)
+LIBS   = $(LIB) $(SOLIBV)
 
-UDNS_UTILS   = $(UDNS_USRCS:.c=)
-UDNS_SOUTILS = $(UDNS_USRCS:.c=.shared)
+UTILS   = $(USRCS:.c=)
+SOUTILS = $(USRCS:.c=.shared)
 
-UDNS_PFX = udns-$(UDNS_VERS)
+NAMEPFX = udns-$(VERS)
 
-CFLAGS = -Wall -W -Wmissing-prototypes -O2 -DHAVE_POLL
 CC = gcc
-AWK = awk
+CFLAGS = -Wall -W -Wmissing-prototypes -O2
+CDEFS = -DHAVE_POLL
 PICFLAGS = -fPIC
+AWK = awk
 
 all: static
 
 .SUFFIXES: .c .o .lo .shared
 
-static: $(UDNS_LIB) $(UDNS_UTILS)
-$(UDNS_LIB): $(UDNS_OBJS)
+static: $(LIB) $(UTILS)
+staticlib: $(LIB)
+$(LIB): $(OBJS)
 	-rm -f $@
-	$(AR) rv $@ $(UDNS_OBJS)
+	$(AR) rv $@ $(OBJS)
 .c.o:
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) $(CDEFS) -c $<
+$(OBJS): udns.h
 
-$(UDNS_OBJS) $(UDNS_SOBJS): udns.h
-$(UDNS_UTILS): udns.h $(UDNS_LIB)
+$(UTILS): udns.h $(LIB)
 .c:
-	$(CC) $(CFLAGS) -o $@ $< $(UDNS_LIB)
+	$(CC) $(CFLAGS) $(CDEFS) -o $@ $< $(LIB)
 
-shared: $(UDNS_SOLIB) $(UDNS_SOUTILS)
+shared: $(SOLIBV) $(SOUTILS)
+sharedlib: $(SOLIBV)
 
-$(UDNS_SOLIB): $(UDNS_SOLIBV)
-	rm -f $@
-	ln -s $< $@
-$(UDNS_SOLIBV): $(UDNS_SOBJS)
-	$(CC) -shared -Wl,--soname,$@ -o $@ $(UDNS_SOBJS)
+$(SOLIBV): $(SOBJS)
+	$(CC) -shared -Wl,--soname,$(SOLIBV) -o $@ $(SOBJS)
+	rm -f $(SOLIB)
+	ln -s $(SOLIBV) $(SOLIB)
 .c.lo:
-	$(CC) $(CFLAGS) $(PICFLAGS) -o $@ -c $<
+	$(CC) $(CFLAGS) $(PICFLAGS) $(CDEFS) -o $@ -c $<
+$(SOBJS): udns.h
 
-$(UDNS_SOUTILS): udns.h $(UDNS_SOLIB)
+$(SOUTILS): udns.h $(SOLIB)
 .c.shared:
-	$(CC) $(CFLAGS) -o $@ $< $(UDNS_SOLIB)
+	$(CC) $(CFLAGS) $(CDEFS) -o $@ $< $(SOLIB)
 
+# udns_codes.c is generated from udns.h
 udns_codes.c:	udns.h Makefile
 	@echo Generating $@
 	@set -e; exec >$@.tmp; \
@@ -88,7 +93,7 @@ udns_codes.c:	udns.h Makefile
 	 echo "const struct dns_nameval dns_$${2}tab[] = {"; \
 	 $(AWK) "/^  DNS_$${1}_[A-Z0-9_]+[ 	]*=/ \
 	  { printf \" {%s,\\\"%s\\\"},\\n\", \$$1, substr(\$$1,7) }" \
-	  $< ; \
+	  udns.h ; \
 	 echo " {0,0}};"; \
 	 echo "const char *dns_$${2}name(enum dns_$${2} code) {"; \
 	 echo " static char nm[20];"; \
@@ -96,7 +101,7 @@ udns_codes.c:	udns.h Makefile
 	 $(AWK) "BEGIN{i=0} \
 	   /^  DNS_$${1}_[A-Z0-9_]+[ 	]*=/ \
 	   {printf \" case %s: return dns_$${2}tab[%d].name;\\n\",\$$1,i++}\
-	   " $< ; \
+	   " udns.h ; \
 	 echo " }"; \
 	 echo " return _dns_format_code(nm,\"$$2\",code);"; \
 	 echo "}"; \
@@ -105,17 +110,21 @@ udns_codes.c:	udns.h Makefile
 	@mv $@.tmp $@
 
 udns.3.html: udns.3
-	groff -man -Thtml $< > $@.tmp
+	groff -man -Thtml udns.3 > $@.tmp
 	mv $@.tmp $@
 
-dist: $(UDNS_PFX).tar.gz
-$(UDNS_PFX).tar.gz: $(UDNS_DIST)
-	mkdir $(UDNS_PFX)
-	ln $(UDNS_DIST) $(UDNS_PFX)
-	tar cvfz $@ $(UDNS_PFX)
-	rm -rf $(UDNS_PFX)
+dist: $(NAMEPFX).tar.gz
+$(NAMEPFX).tar.gz: $(DIST)
+	mkdir $(NAMEPFX)
+	ln $(DIST) $(NAMEPFX)
+	tar cvfz $@ $(NAMEPFX)
+	rm -rf $(NAMEPFX)
+subdist:
+	cp -p $(DIST) $(TARGET)/
 
 clean:
-	rm -f $(UDNS_OBJS) $(UDNS_SOBJS)
+	rm -f $(OBJS) $(SOBJS) build-stamp
 distclean: clean
-	rm -f $(UDNS_LIBS) udns.3.html $(UDNS_UTILS) $(UDNS_SOUTILS)
+	rm -f $(LIBS) libudns.so udns.3.html $(UTILS) $(SOUTILS)
+
+.PHONY: all static staticlib shared sharedlib dist clean distclean subdist

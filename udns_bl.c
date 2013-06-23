@@ -1,4 +1,4 @@
-/* $Id: udns_bl.c,v 1.7 2005/04/05 22:51:32 mjt Exp $
+/* $Id: udns_bl.c,v 1.8 2005/04/06 00:57:50 mjt Exp $
    DNSBL stuff
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -22,6 +22,9 @@
  */
 
 #include "udns.h"
+#ifndef NULL
+# define NULL 0
+#endif
 
 struct dns_query *
 dns_submit_a4dnsbl(struct dns_ctx *ctx,

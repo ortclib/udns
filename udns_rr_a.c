@@ -1,4 +1,4 @@
-/* $Id: udns_rr_a.c,v 1.11 2005/04/05 22:51:32 mjt Exp $
+/* $Id: udns_rr_a.c,v 1.12 2005/04/06 00:57:50 mjt Exp $
    parse/query A/AAAA IN records
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -24,6 +24,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#ifdef WIN32
+# include <winsock2.h>          /* includes <windows.h> */
+# include <ws2tcpip.h>          /* needed for struct in6_addr */
+#else
+# include <sys/types.h>
+# include <netinet/in.h>
+#endif
 #include "udns.h"
 
 /* here, we use common routine to parse both IPv4 and IPv6 addresses.
@@ -93,7 +100,9 @@ dns_resolve_a4(struct dns_ctx *ctx, const char *name, int flags) {
 
 int
 dns_parse_a6(const unsigned char *pkt, const unsigned char *pkte, void **ret) {
+#ifdef AF_INET6
   assert(sizeof(struct in6_addr) == 16);
+#endif
   return dns_parse_a(DNS_T_AAAA, 16, pkt, pkte, ret);
 }
 
