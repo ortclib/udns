@@ -1,5 +1,26 @@
-/* $Id: dnsget.c,v 1.3 2004/07/11 10:34:40 mjt Exp $
+/* $Id: dnsget.c,v 1.6 2005/04/06 00:05:36 mjt Exp $
+   simple host/dig-like application using UDNS library
+
+   Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
+   This file is part of UDNS library, an async DNS stub resolver.
+
+   This library is free software; you can redistribute it and/or
+   modify it under the terms of the GNU Lesser General Public
+   License as published by the Free Software Foundation; either
+   version 2.1 of the License, or (at your option) any later version.
+
+   This library is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Lesser General Public License for more details.
+
+   You should have received a copy of the GNU Lesser General Public
+   License along with this library, in file named COPYING.LGPL; if not,
+   write to the Free Software Foundation, Inc., 59 Temple Place,
+   Suite 330, Boston, MA  02111-1307  USA
+
  */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -9,12 +30,24 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
+#include <stdarg.h>
+#include <errno.h>
 #include "udns.h"
 
 static char *progname;
 static int verbose = 1;
 static int errors;
 static int notfound;
+
+static void die(int errnum, const char *fmt, ...) {
+  va_list ap;
+  fprintf(stderr, "%s: ", progname);
+  va_start(ap, fmt); vfprintf(stderr, fmt, ap); va_end(ap);
+  if (errnum) fprintf(stderr, ": %s\n", strerror(errnum));
+  else putc('\n', stderr);
+  fflush(stderr);
+  exit(1);
+}
 
 static const struct qtype {
   const char *name;
@@ -248,60 +281,82 @@ int main(int argc, char **argv) {
   struct timeval tv;
   time_t now;
   struct qtype qtp;
+  int nserv = 0;
 
   if (!(progname = strrchr(argv[0], '/'))) progname = argv[0];
   else argv[0] = ++progname;
 
-  while((i = getopt(argc, argv, "vqt:c:")) != EOF) switch(i) {
+  if (argc <= 1)
+    die(0, "try `%s -h' for help", progname);
+
+  if (dns_init(0) < 0)
+    die(errno, "unable to initialize dns library");
+  while((i = getopt(argc, argv, "vqt:c:n:p:h")) != EOF) switch(i) {
   case 'v': ++verbose; break;
   case 'q': --verbose; break;
   case 't':
 #if 0
     for (i = 0; qtypes[i].name; ++i)
-      if (strcmp(qtypes[i].name, optarg) == 0)
+      if (strcasecmp(qtypes[i].name, optarg) == 0)
         break;
-    if (!qtypes[i].name) {
-      fprintf(stderr, "%s: unrecognized query type %s\n", progname, optarg);
-      return 1;
-    }
+    if (!qtypes[i].name)
+      die(0, "unrecognized query type %s", optarg);
     qt = &qtypes[i];
 #else
-    i = dns_findtypename(optarg);
-    if (!i) {
-      fprintf(stderr, "%s: unrecognized query type %s\n", progname, optarg);
-      return 1;
-    }
+    if (optarg[0] == '*' && !optarg[1])
+      i = DNS_T_ANY;
+    else if ((i = dns_findtypename(optarg)) <= 0)
+      die(0, "unrecognized query type `%s'", optarg);
     qtp.qtyp = i;
     qtp.name = optarg;
     qt = &qtp;
 #endif
     break;
   case 'c':
-    if (strcmp(optarg, "in") == 0) qcls = DNS_C_IN;
-    else if (strcmp(optarg, "ch") == 0) qcls = DNS_C_CH;
-    else if (strcmp(optarg, "hs") == 0) qcls = DNS_C_HS;
-    else if (strcmp(optarg, "any") == 0) qcls = DNS_C_ANY;
-    else if (strcmp(optarg, "*") == 0) qcls = DNS_C_ANY;
-    else {
-      fprintf(stderr, "%s: unrecognized class type %s\n", progname, optarg);
-      return 1;
-    }
+    if (optarg[0] == '*' && !optarg[1])
+      i = DNS_C_ANY;
+    else if ((i = dns_findclassname(optarg)) < 0)
+      die(0, "unrecognized query class `%s'", optarg);
+    qcls = i;
     break;
-  default: return 1;
+  case 'n':
+    if (!nserv++)
+      dns_add_serv(0, 0);
+    if (dns_add_serv(0, optarg) < 0)
+      die(errno, "unable to add nameserver `%s'", optarg);
+    break;
+  case 'p':
+    if (dns_set_opt(NULL, DNS_OPT_PORT, atoi(optarg)) < 0)
+      die(0, "invalid port `%s'", optarg);
+    break;
+  case 'h':
+    printf(
+"%s: simple DNS query tool (using udns version %s)\n"
+"Usage: %s [options] domain-name...\n"
+"where options are:\n"
+" -h - print this help and exit\n"
+" -v - be more verbose\n"
+" -q - be less verbose\n"
+" -t type - set query type (A, AA, PTR etc)\n"
+" -c class - set query class (IN (default), CH, HS, *)\n"
+" -n ns - use given nameserver(s) (IP addresses) instead of default\n"
+" -p port - use this port for queries instead of default 53\n"
+      , progname, dns_version(), progname);
+    return 0;
+  default:
+    die(0, "try `%s -h' for help", progname);
   }
 
   argc -= optind; argv += optind;
 
-  fd = dns_init(1);
-  if (fd < 0) {
-    fprintf(stderr, "%s: unable to initialize dns library: %m\n", progname);
-    return 1;
-  }
+  fd = dns_open(NULL);
+  if (fd < 0)
+    die(errno, "unable to open dns library");
 
   now = time(NULL);
   if (!qt) qt = qtypes;
   for(i = 0; i < argc; ++i) {
-    if (!dns_submit_p(0, argv[i], qcls, qt->qtyp, 0, 0, dnscb, argv[i], now))
+    if (!dns_submit_p(NULL, argv[i], qcls, qt->qtyp, 0, 0, dnscb, argv[i], now))
       dnserror(argv[i], dns_status(0));
   }
 
@@ -312,7 +367,7 @@ int main(int argc, char **argv) {
     tv.tv_usec = 0;
     i = select(fd+1, &fds, 0, 0, &tv);
     now = time(NULL);
-    if (i > 0) dns_ioevent(0, now);
+    if (i > 0) dns_ioevent(NULL, now);
   }
 
   return errors ? 1 : notfound ? 100 : 0;

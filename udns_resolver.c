@@ -1,23 +1,46 @@
-/* $Id: udns_resolver.c,v 1.18 2004/07/11 10:51:46 mjt Exp $
- * resolver stuff (main module)
+/* $Id: udns_resolver.c,v 1.25 2005/04/05 22:52:39 mjt Exp $
+   resolver stuff (main module)
+
+   Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
+   This file is part of UDNS library, an async DNS stub resolver.
+
+   This library is free software; you can redistribute it and/or
+   modify it under the terms of the GNU Lesser General Public
+   License as published by the Free Software Foundation; either
+   version 2.1 of the License, or (at your option) any later version.
+
+   This library is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Lesser General Public License for more details.
+
+   You should have received a copy of the GNU Lesser General Public
+   License along with this library, in file named COPYING.LGPL; if not,
+   write to the Free Software Foundation, Inc., 59 Temple Place,
+   Suite 330, Boston, MA  02111-1307  USA
+
  */
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef WIN32
+#else
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <assert.h>
-#include <time.h>
 #include <sys/time.h>
-#include <errno.h>
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
 #ifdef HAVE_POLL
 # include <sys/poll.h>
 #endif
+#define closesocket(sock) close(sock)
+#endif	/* !WIN32 */
+#include <time.h>
+#include <errno.h>
+#include <assert.h>
+#include <stddef.h>
 #include "udns.h"
 
 #define DNS_INTERNAL	0xffff	/* internal flags mask */
@@ -28,6 +51,25 @@
 
 #define DNS_QEXTRA	16	/* size of extra buffer space */
 #define DNS_QBUF	DNS_HSIZE+DNS_MAXDN+DNS_QEXTRA
+
+#if !defined(HAVE_INET6) && defined(AF_INET6)
+# define HAVE_INET6 1
+#endif
+#ifdef NO_INET6
+# undef HAVE_INET6
+#endif
+
+#ifndef EAFNOSUPPORT
+# define EAFNOSUPPORT EINVAL
+#endif
+
+union sockaddr_ns {
+  struct sockaddr sa;
+  struct sockaddr_in sin;
+#if HAVE_INET6
+  struct sockaddr_in6 sin6;
+#endif
+};
 
 struct dns_query {
   unsigned char dnsq_buf[DNS_QBUF];	/* the query buffer */
@@ -63,7 +105,7 @@ struct dns_ctx {		/* resolver context */
   unsigned dnsc_udpbuf;			/* size of UDP buffer */
 #define LIM_UDPBUF	DNS_MAXPACKET,65536
   /* array of nameserver addresses */
-  struct sockaddr_in dnsc_serv[DNS_MAXSERV];
+  union sockaddr_ns dnsc_serv[DNS_MAXSERV];
   unsigned dnsc_nserv;			/* number of nameservers */
   /* search list for unqualified names */
   unsigned char dnsc_srch[DNS_MAXSRCH][DNS_MAXDN];
@@ -77,9 +119,27 @@ struct dns_ctx {		/* resolver context */
   unsigned short dnsc_nextid;		/* next queue ID to use */
   int dnsc_udpsock;			/* UDP socket */
   struct dns_query *dnsc_qactive;	/* active query list */
+  int dnsc_nactive;			/* number entries in dnsc_qactive */
   unsigned char *dnsc_pbuf;		/* packet buffer (udpbuf size) */
   int dnsc_qstatus;			/* last query status value */
 };
+
+static const struct {
+  const char *name;
+  enum dns_opt opt;
+  unsigned offset;
+  unsigned min, max;
+} dns_opts[] = {
+#define opt(name,opt,field,min,max) \
+	{name,opt,offsetof(struct dns_ctx,field),min,max}
+  opt("retrans",DNS_OPT_TIMEOUT,dnsc_timeout,	1,300),
+  opt("retry",	DNS_OPT_NTRIES,	dnsc_ntries,	1,50),
+  opt("ndots",	DNS_OPT_NDOTS,	dnsc_ndots,	0,1000),
+  opt("port",	DNS_OPT_PORT,	dnsc_port,	1,0xffff),
+  opt("udpbuf",	DNS_OPT_UDPSIZE,dnsc_udpbuf,	DNS_MAXPACKET,65536),
+#undef opt
+};
+#define dns_ctxopt(ctx,offset) (*((unsigned*)(((char*)ctx)+offset)))
 
 #define ISSPACE(x) (x == ' ' || x == '\t' || x == '\r' || x == '\n')
 
@@ -95,99 +155,169 @@ struct dns_ctx dns_defctx;
 #define CTXOPEN(ctx) (ctx->dnsc_udpsock >= 0)
 #define CTXACTIVE(ctx) (ctx->dnsc_qactive != NULL)
 
-static int dns_add_serv(struct dns_ctx *ctx, const char *ns) {
-  struct sockaddr_in *sin = &ctx->dnsc_serv[ctx->dnsc_nserv];
-  if (!inet_aton(ns, &sin->sin_addr))
-    return 0;
-  ++ctx->dnsc_nserv;
-  return 1;
+#if defined(NDEBUG) || !defined(DEBUG)
+#define dns_assert_ctx(ctx)
+#else
+static void dns_assert_ctx(const struct dns_ctx *ctx) {
+  int nactive = 0;
+  const struct dns_query *q;
+  for(q = ctx->dnsc_qactive; q; q = q->dnsq_next) {
+    assert(q->dnsq_ctx == ctx);
+    ++nactive;
+  }
+  assert(nactive == ctx->dnsc_nactive);
+}
+#endif
+
+static int dns_add_serv_internal(struct dns_ctx *ctx, const char *serv) {
+  union sockaddr_ns *sns;
+  if (!serv)
+    return (ctx->dnsc_nserv = 0);
+  if (ctx->dnsc_nserv >= DNS_MAXSERV)
+    return errno = EOVERFLOW, -1;
+  sns = &ctx->dnsc_serv[ctx->dnsc_nserv];
+  memset(sns, 0, sizeof(*sns));
+#if HAVE_INET6
+  { struct in_addr addr;
+    struct in6_addr addr6;
+    if (inet_pton(AF_INET, serv, &addr) > 0) {
+      sns->sin.sin_family = AF_INET;
+      sns->sin.sin_addr = addr;
+      return ++ctx->dnsc_nserv;
+    }
+    if (inet_pton(AF_INET6, serv, &addr6) > 0) {
+      sns->sin6.sin6_family = AF_INET6;
+      sns->sin6.sin6_addr = addr6;
+      return ++ctx->dnsc_nserv;
+    }
+  }
+#else
+  { struct in_addr addr;
+    if (inet_aton(serv, &addr) > 0) {
+      sns->sin.sin_family = AF_INET;
+      sns->sin.sin_addr = addr;
+      return ++ctx->dnsc_nserv;
+    }
+  }
+#endif
+  errno = EINVAL;
+  return -1;
 }
 
-int dns_set_serv(struct dns_ctx *ctx, const char **servv) {
+int dns_add_serv(struct dns_ctx *ctx, const char *serv) {
   SETCTXFRESH(ctx);
+  return dns_add_serv_internal(ctx, serv);
+}
+
+static void dns_set_serv_internal(struct dns_ctx *ctx, char *serv) {
   ctx->dnsc_nserv = 0;
-  while(*servv && ctx->dnsc_nserv < DNS_MAXSERV)
-    dns_add_serv(ctx, *servv++);
-  return ctx->dnsc_nserv;
+  for(serv = strtok(serv, space); serv; serv = strtok(NULL, space))
+    dns_add_serv_internal(ctx, serv);
 }
 
 static int
-dns_set_num(const char *opt, const char *name, int *valp, int min, int max) {
-  while(*name) if (*name++ != *opt++) return 0;
-  if (*opt++ != ':') return 0;
-  if (*opt < '0' || *opt > '9') return 1;
-  if ((*valp = atoi(opt)) > max) *valp = max;
-  else if (min && *valp < min) *valp = min;
-  return 1;
+dns_add_serv_s_internal(struct dns_ctx *ctx, const struct sockaddr *sa) {
+  if (!sa)
+    return (ctx->dnsc_nserv = 0);
+  if (ctx->dnsc_nserv >= DNS_MAXSERV)
+    return errno = EOVERFLOW, -1;
+#if HAVE_INET6
+  else if (sa->sa_family == AF_INET6)
+    ctx->dnsc_serv[ctx->dnsc_nserv].sin6 = *(struct sockaddr_in6*)sa;
+#endif
+  else if (sa->sa_family == AF_INET)
+    ctx->dnsc_serv[ctx->dnsc_nserv].sin = *(struct sockaddr_in*)sa;
+  else 
+    return errno = EAFNOSUPPORT, -1;
+  return ++ctx->dnsc_nserv;
 }
 
-static void dns_opts(struct dns_ctx *ctx, const char *opts) {
+int dns_add_serv_s(struct dns_ctx *ctx, const struct sockaddr *sa) {
+  SETCTXFRESH(ctx);
+  return dns_add_serv_s_internal(ctx, sa);
+}
+
+static void dns_set_opts_internal(struct dns_ctx *ctx, const char *opts) {
+  unsigned i, v;
   for(;;) {
     while(ISSPACE(*opts)) ++opts;
     if (!*opts) break;
-    if (!(dns_set_num(opts, "ndots", &ctx->dnsc_ndots, LIM_NDOTS) ||
-          dns_set_num(opts, "retrans", &ctx->dnsc_timeout, LIM_TIMEOUT) ||
-          dns_set_num(opts, "retry", &ctx->dnsc_ntries, LIM_NTRIES) ||
-          dns_set_num(opts, "udpbuf", &ctx->dnsc_udpbuf, LIM_UDPBUF) ||
-          dns_set_num(opts, "port", &ctx->dnsc_port, LIM_PORT)))
-      (void)0;			/* unknown option? */
+    for(i = 0; i < sizeof(dns_opts)/sizeof(dns_opts[0]); ++i) {
+      v = strlen(dns_opts[i].name);
+      if (strncmp(dns_opts[i].name, opts, v) != 0 ||
+          (opts[v] != ':' && opts[v] != '='))
+        continue;
+      opts += v;
+      v = 0;
+      if (*opts < '0' || *opts > '9') break;
+      do v = v * 10 + (*opts++ - '0');
+      while (*opts >= '0' && *opts <= '9');
+      if (dns_opts[i].min && v < dns_opts[i].min) v = dns_opts[i].min;
+      else if (v > dns_opts[i].max) v = dns_opts[i].max;
+      dns_ctxopt(ctx, dns_opts[i].offset) = v;
+      break;
+    }
     while(*opts && !ISSPACE(*opts)) ++opts;
   }
 }
 
 int dns_set_opts(struct dns_ctx *ctx, const char *opts) {
   SETCTXFRESH(ctx);
-  dns_opts(ctx, opts);
+  dns_set_opts_internal(ctx, opts);
   return 0;
 }
 
 int dns_set_opt(struct dns_ctx *ctx, enum dns_opt opt, int val) {
   int prev;
+  unsigned i;
   SETCTXFRESH(ctx);
-  switch(opt) {
-#define _oneopt(name,field,minval,maxval) \
-  case name: \
-    prev = ctx->field; \
-    if (val >= 0) { \
-      if (val < minval || val > maxval) return -1; \
-      ctx->field = val; \
-    } \
-    break
-#define oneopt(name,field,lim) _oneopt(name,field,lim)
-  oneopt(DNS_OPT_NDOTS,  dnsc_ndots,  LIM_NDOTS);
-  oneopt(DNS_OPT_TIMEOUT,dnsc_timeout,LIM_TIMEOUT);
-  oneopt(DNS_OPT_NTRIES, dnsc_ntries, LIM_NTRIES);
-  oneopt(DNS_OPT_UDPSIZE,dnsc_udpbuf, LIM_UDPBUF);
-  oneopt(DNS_OPT_PORT,   dnsc_port,   LIM_PORT);
-#undef oneopt
-#undef _oneopt
-  case DNS_OPT_FLAGS:
+  for(i = 0; i < sizeof(dns_opts)/sizeof(dns_opts[0]); ++i) {
+    if (dns_opts[i].opt != opt) continue;
+    prev = dns_ctxopt(ctx, dns_opts[i].offset);
+    if (val >= 0) {
+      unsigned v = val;
+      if (v < dns_opts[i].min || v > dns_opts[i].max) {
+        errno = EINVAL;
+	return -1;
+      }
+      dns_ctxopt(ctx, dns_opts[i].offset) = v;
+    }
+    return prev;
+  }
+  if (opt == DNS_OPT_FLAGS) {
     prev = ctx->dnsc_flags & ~DNS_INTERNAL;
     if (val >= 0)
       ctx->dnsc_flags = val & DNS_INTERNAL;
-  default:
-    return -1;
+    return prev;
   }
-  return prev;
+  errno = ENOSYS;
+  return -1;
 }
 
-static int dns_add_srch(struct dns_ctx *ctx, const char *srch) {
-  if (dns_sptodn(srch, ctx->dnsc_srch[ctx->dnsc_nsrch], DNS_MAXDN) <= 0)
-    return 0;
-  ++ctx->dnsc_nsrch;
-  return 1;
+static int dns_add_srch_internal(struct dns_ctx *ctx, const char *srch) {
+  if (!srch)
+    return (ctx->dnsc_nsrch = 0);
+  else if (ctx->dnsc_nsrch >= DNS_MAXSRCH)
+    return errno = EOVERFLOW, -1;
+  else if (dns_sptodn(srch, ctx->dnsc_srch[ctx->dnsc_nsrch], DNS_MAXDN) <= 0)
+    return errno = EINVAL, -1;
+  else
+    return ++ctx->dnsc_nsrch;
 }
 
-int dns_set_srch(struct dns_ctx *ctx, const char **srchv) {
+int dns_add_srch(struct dns_ctx *ctx, const char *srch) {
   SETCTXFRESH(ctx);
-  ctx->dnsc_nsrch = 0;
-  while(*srchv && ctx->dnsc_nsrch < DNS_MAXSRCH)
-    dns_add_srch(ctx, *srchv++);
-  return ctx->dnsc_nsrch;
+  return dns_add_srch_internal(ctx, srch);
 }
 
-void dns_set_dbgfn(struct dns_ctx *ctx, void (*fn)(const unsigned char *, int))
-{
+static void dns_set_srch_internal(struct dns_ctx *ctx, char *srch) {
+  ctx->dnsc_nsrch = 0;
+  for(srch = strtok(srch, space); srch; srch = strtok(NULL, space))
+    dns_add_srch_internal(ctx, srch);
+}
+
+void
+dns_set_dbgfn(struct dns_ctx *ctx, void (*fn)(const unsigned char *, int)) {
   SETCTXINITED(ctx);
   ctx->dnsc_udbgfn = fn;
 }
@@ -204,15 +334,160 @@ static void dns_firstid(struct dns_ctx *ctx) {
   ctx->dnsc_nextid = (tv.tv_usec ^ getpid()) & 0xffff;
 }
 
-int dns_init(int do_open) {
-  FILE *f;
+#ifdef WIN32
+
+typedef DWORD (WINAPI *GetAdaptersAddressesFunc)(
+  ULONG Family, DWORD Flags, PVOID Reserved,
+  PIP_ADAPTER_ADDRESSES pAdapterAddresses,
+  PULONG pOutBufLen);
+
+static int dns_initns_iphlpapi(struct dns_ctx *ctx) {
+  HANDLE h_iphlpapi;
+  GetAdaptersAddressesFunc pfnGetAdAddrs;
+  PIP_ADAPTER_ADDRESSES pAddr, pAddrBuf;
+  PIP_ADAPTER_DNS_SERVER_ADDRESS pDnsAddr;
+  ULONG ulOutBufLen;
+  DWORD dwRetVal;
+  int ret = -1;
+
+  h_iphlpapi = LoadLibrary("iphlpapi.dll");
+  if (h_iphlpapi == HANDLE_ERROR)
+    return -1;
+  pfnGetAdAddrs = (GetAdaptersAddressesFunc)
+    GetProcAddress(iphlp, "GetAdaptersAddresses");
+  if (!pfnGetAdAddrs) goto freelib;
+  ulOutBufLen = 0;
+  dwRetVal = GetAdAddrs(AF_UNSPEC, 0, NULL, NULL, &ulOutBufLen);
+  if (dwRetVal != ERROR_BUFFER_OVERFLOW) goto freelib;
+  pAddrBuf = malloc(ulOutBufLen);
+  if (!pAddrBuf) goto freelib;
+  dwRetVal = GetAdAddrs(AF_UNSPEC, 0, NULL, pAddrBuf, &ulOutBufLen);
+  if (dwRetVal != ERROR_SUCCESS) goto freemem;
+  for (pAddr = pAddrBuf;
+       pAddr && ctx->dnsc_nserv <= DNS_MAXSERV;
+       pAddr = pAddr->Next)
+    for (pDnsAddr = pAddr->FirstDnsServerAddress;
+         pDnsAddr && ctx->dnsc_nserv <= DNS_MAXSERV;
+         pDnsAddr = pDnsAddr->Next)
+      dns_add_serv_s_internal(ctx, pDnsAddr->Address.lpSockaddr);
+  ret = 0;
+freemem:
+  free(pAddrBuf);
+freelib:
+  FreeLibrary(h_iphlpapi);
+  return ret;
+}
+
+static int dns_initns_registry(struct dns_ctx *ctx) {
+  LONG res;
+  HKEY hk;
+  DWORD type = REG_EXPAND_SZ | REG_SZ;
+  DWORD len;
+  char valBuf[1024];
+
+#define REGKEY_WINNT "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters"
+#define REGKEY_WIN9x "SYSTEM\\CurrentControlSet\\Services\\VxD\\MSTCP"
+  res = RegOpenKeyEx(HKEY_LOCAL_MACHINE, REGKEY_WINNT, 0, KEY_QUERY_VALUE, &hk);
+  if (res != ERROR_SUCCESS)
+    res = RegOpenKeyEx(HKEY_LOCAL_MACHINE, REGKEY_WIN9x,
+                       0, KEY_QUERY_VALUE, &hk);
+  if (res != ERROR_SUCCESS)
+    return -1;
+  len = sizeof(valBuf) - 1;
+  res = RegQueryValueEx(hk, "NameServer", NULL, &type, valBuf, &len);
+  if (res != ERROR_SUCCESS || !len || !valBuf[0]) {
+    len = sizeof(valBuf) - 1;
+    res = RegQueryValueEx(hk, "DhcpNameServer", &type, valBuf, &len);
+  }
+  RegCloseKey(hk);
+  if (res != ERROR_SUCCESS || !len || !valBuf[0])
+    return -1;
+  valBuf[len] = '\0';
+  /* nameservers are stored as a whitespace-seperate list:
+   * "192.168.1.1 123.21.32.12" */
+  dns_set_serv_internal(ctx, valBuf);
+  return 0;
+}
+
+static int dns_init_internal(struct dns_ctx *ctx) {
+  if (dns_initns_iphlpapi(ctx) != 0)
+    dns_initns_registry(ctx);
+  /*XXX WIN32: probably good to get default domain and search list too...
+   * And options.  Something is in registry. */
+  /*XXX WIN32: maybe environment variables are also useful? */
+  return 0;
+}
+
+#else /* !WIN32 */
+
+static int dns_init_internal(struct dns_ctx *ctx) {
   char *v;
-  char buf[2048];
-  int srch_set = 0, serv_set = 0;
+  char buf[2049];	/* this buffer is used to hold /etc/resolv.conf */
+
+  /* read resolv.conf... */
+  { int fd = open("/etc/resolv.conf", O_RDONLY);
+    if (fd >= 0) {
+      int l = read(fd, buf, sizeof(buf) - 1);
+      close(fd);
+      buf[l < 0 ? 0 : l] = '\0';
+    }
+    else
+      buf[0] = '\0';
+  }
+  if (buf[0]) {	/* ...and parse it */
+    char *line, *nextline;
+    line = buf;
+    do {
+      nextline = strchr(line, '\n');
+      if (nextline) *nextline++ = '\0';
+      v = line;
+      while(*v && !ISSPACE(*v)) ++v;
+      if (!*v) continue;
+      *v++ = '\0';
+      while(ISSPACE(*v)) ++v;
+      if (!*v) continue;
+      if (strcmp(line, "domain") == 0)
+        dns_set_srch_internal(ctx, strtok(v, space));
+      else if (strcmp(line, "search") == 0)
+        dns_set_srch_internal(ctx, v);
+      else if (strcmp(line, "nameserver") == 0)
+        dns_add_serv_internal(ctx, strtok(v, space));
+      else if (strcmp(line, "options") == 0)
+        dns_set_opts_internal(ctx, v);
+    } while((line = nextline) != NULL);
+  }
+
+  buf[sizeof(buf)-1] = '\0';
+
+  /* get list of nameservers from env. vars. */
+  if ((v = getenv("NSCACHEIP")) != NULL ||
+      (v = getenv("NAMESERVERS")) != NULL) {
+    strncpy(buf, v, sizeof(buf) - 1);
+    dns_set_serv_internal(ctx, buf);
+  }
+  /* if $LOCALDOMAIN is set, use it for search list */
+  if ((v = getenv("LOCALDOMAIN")) != NULL) {
+    strncpy(buf, v, sizeof(buf) - 1);
+    dns_set_srch_internal(ctx, buf);
+  }
+  if ((v = getenv("RES_OPTIONS")) != NULL)
+    dns_set_opts_internal(ctx, v);
+
+  /* if still no search list, use local domain name */
+  if (!ctx->dnsc_nsrch &&
+      gethostname(buf, sizeof(buf) - 1) == 0 &&
+      (v = strchr(buf, '.')) != NULL &&
+      *++v != '\0')
+    dns_add_srch_internal(ctx, v);
+
+  return 0;
+}
+
+#endif /* dns_init_internal() for !WIN32 */
+
+int dns_init(int do_open) {
   struct dns_ctx *ctx = &dns_defctx;
-
   assert(!CTXINITED(ctx));
-
   memset(ctx, 0, sizeof(*ctx));
   ctx->dnsc_timeout = 4;
   ctx->dnsc_ntries = 3;
@@ -220,76 +495,8 @@ int dns_init(int do_open) {
   ctx->dnsc_udpbuf = DNS_EDNS0PACKET;
   ctx->dnsc_port = DNS_PORT;
   ctx->dnsc_udpsock = -1;
-
-  buf[sizeof(buf)-1] = '\0';
-
-  if ((v = getenv("NSCACHEIP")) != NULL ||
-      (v = getenv("NAMESERVERS")) != NULL) {
-    strncpy(buf, v, sizeof(buf) - 1);
-    for (v = strtok(v, space);
-         v && ctx->dnsc_nserv < DNS_MAXSERV;
-         v = strtok(NULL, space))
-      dns_add_serv(ctx, v);
-    if (ctx->dnsc_nserv)
-      serv_set = 1;
-  }
-  if ((v = getenv("LOCALDOMAIN")) != NULL) {
-    strncpy(buf, v, sizeof(buf) - 1);
-    if ((v = strtok(v, space)) != NULL)
-      dns_add_srch(ctx, v);
-    srch_set = 1;
-  }
-
-  if ((f = fopen("/etc/resolv.conf", "r")) != NULL) {
-    while(fgets(buf, sizeof buf, f)) {
-      v = buf;
-      while(*v && !ISSPACE(*v)) ++v;
-      if (!*v) continue;
-      *v++ = '\0';
-      while(ISSPACE(*v)) ++v;
-      if (!*v) continue;
-      if (strcmp(buf, "domain") == 0) {
-        if (!srch_set && !ctx->dnsc_nsrch &&
-            (v = strtok(v, space)) != NULL)
-          dns_add_srch(ctx, v);
-      }
-      else if (strcmp(buf, "search") == 0) {
-        if (!srch_set) {
-          ctx->dnsc_nsrch = 0;
-          for (v = strtok(v, space);
-               v && ctx->dnsc_nsrch < DNS_MAXSRCH;
-               v = strtok(NULL, space))
-            dns_add_srch(ctx, v);
-          srch_set = 1;
-        }
-      }
-      else if (strcmp(buf, "nameserver") == 0) {
-        if (!serv_set &&
-            ctx->dnsc_nserv < DNS_MAXSERV &&
-            (v = strtok(v, space)) != NULL)
-          dns_add_serv(ctx, v);
-      }
-      else if (strcmp(buf, "options") == 0)
-        dns_opts(ctx, v);
-    }
-    if (ferror(f)) {
-      fclose(f);
-      return -1;
-    }
-    fclose(f);
-  }
-  else if (errno != ENOENT)
+  if (dns_init_internal(ctx) != 0)
     return -1;
-
-  if (!srch_set && !ctx->dnsc_nsrch &&
-      gethostname(buf, sizeof(buf) - 1) == 0 &&
-      (v = strchr(buf, '.')) != NULL &&
-      *++v != '\0')
-    dns_add_srch(ctx, v);
-
-  if ((v = getenv("RES_OPTIONS")) != NULL)
-    dns_opts(ctx, v);
-
   dns_firstid(ctx);
   ctx->dnsc_flags |= DNS_INITED;
   return do_open ? dns_open(ctx) : 0;
@@ -298,12 +505,14 @@ int dns_init(int do_open) {
 struct dns_ctx *dns_new(const struct dns_ctx *ctx) {
   struct dns_ctx *n;
   SETCTXINITED(ctx);
+  dns_assert_ctx(ctx);
   n = malloc(sizeof(*n));
   if (!n)
     return NULL;
   *n = *ctx;
   n->dnsc_udpsock = -1;
   n->dnsc_qactive = NULL;
+  n->dnsc_nactive = 0;
   n->dnsc_pbuf = NULL;
   n->dnsc_qstatus = 0;
   dns_firstid(n);
@@ -313,8 +522,9 @@ struct dns_ctx *dns_new(const struct dns_ctx *ctx) {
 void dns_free(struct dns_ctx *ctx) {
   struct dns_query *q;
   SETCTXINITED(ctx);
+  dns_assert_ctx(ctx);
   if (ctx->dnsc_udpsock >= 0)
-    close(ctx->dnsc_udpsock);
+    closesocket(ctx->dnsc_udpsock);
   if (ctx->dnsc_pbuf)
     free(ctx->dnsc_pbuf);
   while((q = ctx->dnsc_qactive) != NULL) {
@@ -330,37 +540,91 @@ void dns_free(struct dns_ctx *ctx) {
 int dns_open(struct dns_ctx *ctx) {
   int sock;
   unsigned i;
+  int port;
+  union sockaddr_ns *sns;
+#if HAVE_INET6
+  unsigned have_inet6 = 0;
+#endif
+
   SETCTXINITED(ctx);
   assert(!CTXOPEN(ctx));
 
-  /* create the socket */
-  sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  port = htons(ctx->dnsc_port);
+  /* ensure we have at least one server */
+  if (!ctx->dnsc_nserv) {
+    sns = ctx->dnsc_serv;
+    sns->sin.sin_family = AF_INET;
+    sns->sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ctx->dnsc_nserv = 1;
+  }
+
+  for (i = 0; i < ctx->dnsc_nserv; ++i) {
+    sns = &ctx->dnsc_serv[i];
+    /* set port for each sockaddr */
+#if HAVE_INET6
+    if (sns->sa.sa_family == AF_INET6) {
+      if (!sns->sin6.sin6_port) sns->sin6.sin6_port = port;
+      ++have_inet6;
+    }
+    else
+#endif
+    {
+      assert(sns->sa.sa_family == AF_INET);
+      if (!sns->sin.sin_port) sns->sin.sin_port = port;
+    }
+  }
+
+#if HAVE_INET6
+  if (have_inet6 && have_inet6 < ctx->dnsc_nserv) {
+    /* convert all IPv4 addresses to IPv6 V4MAPPED */
+    struct sockaddr_in6 sin6;
+    memset(&sin6, 0, sizeof(sin6));
+    sin6.sin6_family = AF_INET6;
+    /* V4MAPPED: ::ffff:1.2.3.4 */
+    sin6.sin6_addr.s6_addr[10] = 0xff;
+    sin6.sin6_addr.s6_addr[11] = 0xff;
+    for(i = 0; i < ctx->dnsc_nserv; ++i) {
+      sns = &ctx->dnsc_serv[i];
+      if (sns->sa.sa_family == AF_INET) {
+        sin6.sin6_port = sns->sin.sin_port;
+        ((struct in_addr*)&sin6.sin6_addr)[3] = sns->sin.sin_addr;
+        sns->sin6 = sin6;
+      }
+    }
+  }
+
+  if (have_inet6)
+    sock = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  else
+#endif /* HAVE_INET6 */
+    sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
   if (sock < 0) {
     ctx->dnsc_qstatus = DNS_E_TEMPFAIL;
     return -1;
   }
+#ifdef WIN32
+  { unsigned long on = 1;
+    if (ioctlsocket(sock, FIONBIO, &on) == SOCKET_ERROR) {
+      closesocket(sock);
+      ctx->dnsc_qstatus = DNS_E_TEMPFAIL;
+      return -1;
+    }
+  }
+#else	/* !WIN32 */
   if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) | O_NONBLOCK) < 0 ||
       fcntl(sock, F_SETFD, FD_CLOEXEC) < 0) {
-    close(sock);
+    closesocket(sock);
     ctx->dnsc_qstatus = DNS_E_TEMPFAIL;
     return -1;
   }
+#endif	/* WIN32 */
   /* allocate the packet buffer */
   if (!(ctx->dnsc_pbuf = malloc(ctx->dnsc_udpbuf))) {
-    close(sock);
+    closesocket(sock);
     ctx->dnsc_qstatus = DNS_E_NOMEM;
     errno = ENOMEM;
     return -1;
-  }
-  /* ensure we have at least one server */
-  if (!ctx->dnsc_nserv) {
-    ctx->dnsc_serv[0].sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    ctx->dnsc_nserv = 1;
-  }
-  /* fix family and port for each sockaddr */
-  for (i = 0; i < ctx->dnsc_nserv; ++i) {
-    ctx->dnsc_serv[i].sin_family = AF_INET;
-    ctx->dnsc_serv[i].sin_port = htons(ctx->dnsc_port);
   }
 
   ctx->dnsc_udpsock = sock;
@@ -383,7 +647,8 @@ int dns_sock(const struct dns_ctx *ctx) {
 
 int dns_active(const struct dns_ctx *ctx) {
   SETCTXINITED(ctx);
-  return CTXACTIVE(ctx);
+  dns_assert_ctx(ctx);
+  return ctx->dnsc_nactive;
 }
 
 int dns_status(const struct dns_ctx *ctx) {
@@ -411,10 +676,13 @@ dns_end_query(struct dns_query *q, struct dns_query **qp,
   dns_query_fn *cbck = q->dnsq_cbck;
   void *cbdata = q->dnsq_cbdata;
   ctx->dnsc_qstatus = status;
+  dns_assert_ctx(ctx);
   if (qp) {
     assert(cbck != NULL);	/*XXX callback may be NULL */
     assert(*qp == q);
+    assert(ctx->dnsc_nactive > 0);
     *qp = q->dnsq_next;
+    --ctx->dnsc_nactive;
   }
 #ifndef NODEBUG
   else
@@ -483,6 +751,8 @@ dns_send(struct dns_query *q, struct dns_query **qp, time_t now) {
   struct dns_ctx *ctx = q->dnsq_ctx;
   int n;
 
+  dns_assert_ctx(ctx);
+
   /* if we can't send the query, return TEMPFAIL even when searching:
    * we can't be sure whenever the name we tried to search exists or not,
    * so don't continue searching, or we may find the wrong name. */
@@ -495,8 +765,8 @@ dns_send(struct dns_query *q, struct dns_query **qp, time_t now) {
   /* send the query */
   n = 10;
   while (sendto(ctx->dnsc_udpsock, q->dnsq_buf, q->dnsq_len, 0,
-                (struct sockaddr *)&ctx->dnsc_serv[q->dnsq_servi],
-                sizeof(struct sockaddr_in)) < 0) {
+                &ctx->dnsc_serv[q->dnsq_servi].sa,
+                sizeof(ctx->dnsc_serv[0])) < 0) {
     /*XXX just ignore the sendto() error for now and try again.
      * In the future, it may be possible to retrieve the error code
      * and find which operation/query failed.
@@ -536,6 +806,7 @@ dns_submit_dn(struct dns_ctx *ctx,
   unsigned dnl;
   struct dns_query *q;
   SETCTXOPEN(ctx);
+  dns_assert_ctx(ctx);
 
   q = calloc(sizeof(*q), 1);
   if (!q) {
@@ -589,6 +860,7 @@ dns_submit_dn(struct dns_ctx *ctx,
     while(*qp) qp = &(*qp)->dnsq_next;
     *qp = q;
     q->dnsq_next = NULL;
+    ++ctx->dnsc_nactive;
     return q;
   }
   else /* dns_end_query() freed the query object for us */
@@ -617,6 +889,7 @@ void dns_tmevent(struct dns_query *q, time_t now) {
   struct dns_query **qp;
   assert(ctx != NULL);
   assert(q->dnsq_deadline > 0 && (now ? now : time(NULL)) >= q->dnsq_deadline);
+  dns_assert_ctx(ctx);
   qp = &ctx->dnsc_qactive;
   while(*qp != q) {
     assert(*qp != NULL);
@@ -627,7 +900,7 @@ void dns_tmevent(struct dns_query *q, time_t now) {
 }
 
 /* process readable fd condition.
- * To be usable in edje-triggered environment, the routine
+ * To be usable in edge-triggered environment, the routine
  * should consume all input so it should loop over.
  * Note it isn't really necessary to loop here, because
  * an application may perform the loop just fine by it's own,
@@ -647,6 +920,7 @@ void dns_ioevent(struct dns_ctx *ctx, time_t now) {
   SETCTX(ctx);
   if (!CTXOPEN(ctx))
     return;
+  dns_assert_ctx(ctx);
   pbuf = ctx->dnsc_pbuf;
 
 again:
@@ -654,12 +928,11 @@ again:
   assert(CTXOPEN(ctx));
 
   for(;;) { /* receive the reply */
-    struct sockaddr_in sin;
-    socklen_t sinlen;
+    union sockaddr_ns sns;
+    socklen_t slen;
 
-    sinlen = sizeof(sin);
-    r = recvfrom(ctx->dnsc_udpsock, pbuf, ctx->dnsc_udpbuf, 0,
-                 (struct sockaddr *)&sin, &sinlen);
+    slen = sizeof(sns);
+    r = recvfrom(ctx->dnsc_udpsock, pbuf, ctx->dnsc_udpbuf, 0, &sns.sa, &slen);
     if (r < 0) {
       /*XXX just ignore recvfrom() errors for now.
        * in the future it may be possible to determine which
@@ -670,21 +943,37 @@ again:
        * or remote.  On local errors, we should stop, while
        * remote errors should be ignored (for now anyway).
        */
+#ifdef WIN32
+      if (WSAGetLastError() != WSAEWOULDBLOCK) return;
+#else
       if (errno == EAGAIN) return;
+#endif
       continue;
     }
     if (r < DNS_HSIZE)
       continue;
     /* ignore replies from wrong server */
-    if (sin.sin_family != AF_INET)
-      continue;
-    if (sinlen != sizeof(sin))
+    if (sns.sa.sa_family != ctx->dnsc_serv[0].sa.sa_family)
       continue;
     servi = 0;
-    while(memcmp(&ctx->dnsc_serv[servi], &sin, sizeof(sin)) != 0)
-      if (++servi >= ctx->dnsc_nserv)
-        goto again;
- 
+#if HAVE_INET6
+    if (sns.sa.sa_family == AF_INET6 && slen == sizeof(sns.sin6)) {
+      while(ctx->dnsc_serv[servi].sin6.sin6_port != sns.sin6.sin6_port ||
+            memcmp(&ctx->dnsc_serv[servi].sin6.sin6_addr,
+                   &sns.sin6.sin6_addr, sizeof(sns.sin6.sin6_addr)) != 0)
+        if (++servi >= ctx->dnsc_nserv)
+          goto again;
+    }
+    else
+#endif
+    if (slen == sizeof(sns.sin)) {
+      while(memcmp(&ctx->dnsc_serv[servi].sin, &sns.sin, sizeof(sns.sin)) != 0)
+        if (++servi >= ctx->dnsc_nserv)
+          goto again;
+    }
+    else
+      goto again;
+
     if (ctx->dnsc_udbgfn)
       ctx->dnsc_udbgfn(pbuf, r);
 
@@ -826,6 +1115,7 @@ int dns_timeouts(struct dns_ctx *ctx, int maxwait, time_t now) {
   struct dns_query *q, **qp;
   int timeout, towait = maxwait;
   SETCTX(ctx);
+  dns_assert_ctx(ctx);
   if (!CTXACTIVE(ctx)) return maxwait;
   if (!now) now = time(NULL);
   qp = &ctx->dnsc_qactive;
@@ -862,6 +1152,9 @@ static void dns_resolve_cb(struct dns_ctx *ctx, void *result, void *data) {
 
 void *dns_resolve(struct dns_ctx *ctx, struct dns_query *q) {
   time_t now;
+#ifdef WIN32
+# warning fixme: poll()/select() on WIN32 (WaitForMultipleObjects?)
+#endif
 #ifdef HAVE_POLL
   struct pollfd pfd;
 #else

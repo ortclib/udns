@@ -1,4 +1,4 @@
-$Id: TODO,v 1.7 2004/07/11 11:18:36 mjt Exp $
+$Id: TODO,v 1.8 2005/04/05 20:25:12 mjt Exp $
 
 The following is mostly an internal, not user-visible stuff.
 
@@ -10,12 +10,6 @@ The following is mostly an internal, not user-visible stuff.
   example?), but it will be difficult to provide type-safe
   non-callback interface due to various RR-specific types
   in use.
-
-* in dns_set_serv() (set list of nameservers to use), we may
-  accept *names* in addition to IP addresses, and perform
-  internal resolving using current (defined) set of nameservers.
-  Is such a feature useful for anything but debugging tools
-  such as dig, host, etc?
 
 * DNS_OPT_FLAGS should be DNS_OPT_ADDFLAGS and DNS_OPT_SETFLAGS.
   Currently one can't add a single flag bit but preserve
@@ -50,3 +44,5 @@ The following is mostly an internal, not user-visible stuff.
 
 * windows port?  Oh no please!..  At least, I can't do it myself
   because of the lack of platform.
+  Ok ok, the Windows port is in progress.  Christian Prahauser
+  from cosy.sbg.ac.at is helping with that.

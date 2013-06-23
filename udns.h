@@ -1,14 +1,49 @@
-/* $Id: udns.h,v 1.19 2004/07/09 01:18:00 mjt Exp $
- * header file for the dns library.
+/* $Id: udns.h,v 1.25 2005/04/05 22:51:32 mjt Exp $
+   header file for the UDNS library.
+
+   Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
+   This file is part of UDNS library, an async DNS stub resolver.
+
+   This library is free software; you can redistribute it and/or
+   modify it under the terms of the GNU Lesser General Public
+   License as published by the Free Software Foundation; either
+   version 2.1 of the License, or (at your option) any later version.
+
+   This library is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Lesser General Public License for more details.
+
+   You should have received a copy of the GNU Lesser General Public
+   License along with this library, in file named COPYING.LGPL; if not,
+   write to the Free Software Foundation, Inc., 59 Temple Place,
+   Suite 330, Boston, MA  02111-1307  USA
+
  */
 
 #ifndef UDNS_VERSION	/* include guard */
 
-#define UDNS_VERSION "0.0.1"
+#define UDNS_VERSION "0.0.5"
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#ifdef WIN32
+# include <winsock2.h>		/* includes <windows.h> */
+# include <ws2tcpip.h>		/* needed for struct in6_addr */
+# ifdef UDNS_DYNAMIC_LIBRARY
+#  ifdef DNS_LIBRARY_BUILD
+#   define UDNS_API __declspec(dllexport)
+#  else
+#   define UDNS_API __declspec(dllimport)
+#  endif
+# endif
+#else
+# include <sys/types.h>
+# include <sys/socket.h>
+# include <netinet/in.h>
+#endif
+
+#ifndef UDNS_API
+# define UDNS_API
+#endif
 
 #ifndef AF_INET6
 struct in6_addr {
@@ -19,7 +54,8 @@ struct in6_addr {
 /**************************************************************************/
 /**************** Common definitions **************************************/
 
-extern const char *dns_version(void);
+UDNS_API const char *
+dns_version(void);
 
 struct dns_ctx;
 struct dns_query;
@@ -99,24 +135,27 @@ enum dns_type {		/* DNS RR Types */
 /**************** Domain Names (DNs) **************************************/
 
 /* return length of the DN */
-unsigned dns_dnlen(const unsigned char *dn);
+UDNS_API unsigned
+dns_dnlen(const unsigned char *dn);
 
 /* return #of labels in a DN */
-unsigned dns_dnlabels(const unsigned char *dn);
+UDNS_API unsigned
+dns_dnlabels(const unsigned char *dn);
 
 /* lower- and uppercase single DN char */
 #define DNS_DNLC(c) ((c) >= 'A' && (c) <= 'Z' ? (c) - 'A' + 'a' : (c))
 #define DNS_DNUC(c) ((c) >= 'a' && (c) <= 'z' ? (c) - 'a' + 'A' : (c))
 
 /* compare the DNs, return dnlen of equal or 0 if not */
-unsigned dns_dnequal(const unsigned char *dn1, const unsigned char *dn2);
+UDNS_API unsigned
+dns_dnequal(const unsigned char *dn1, const unsigned char *dn2);
 
 /* copy one DN to another, size checking */
-unsigned
+UDNS_API unsigned
 dns_dntodn(const unsigned char *sdn, unsigned char *ddn, unsigned ddnsiz);
 
 /* convert asciiz string of length namelen (0 to use strlen) to DN */
-int
+UDNS_API int
 dns_ptodn(const char *name, unsigned namelen,
           unsigned char *dn, unsigned dnsiz,
           int *isabs);
@@ -124,32 +163,39 @@ dns_ptodn(const char *name, unsigned namelen,
 /* simpler form of dns_ptodn() */
 #define dns_sptodn(name,dn,dnsiz) dns_ptodn((name),0,(dn),(dnsiz),0)
 
-extern const unsigned char dns_inaddr_arpa_dn[14];
+UDNS_API extern const unsigned char dns_inaddr_arpa_dn[14];
 #define DNS_A4RSIZE	30
-int dns_a4todn(const struct in_addr *addr, const unsigned char *tdn,
-               unsigned char *dn, unsigned dnsiz);
-int dns_a4ptodn(const struct in_addr *addr, const char *tname,
-                unsigned char *dn, unsigned dnsiz);
-unsigned char *
+UDNS_API int
+dns_a4todn(const struct in_addr *addr, const unsigned char *tdn,
+           unsigned char *dn, unsigned dnsiz);
+UDNS_API int
+dns_a4ptodn(const struct in_addr *addr, const char *tname,
+            unsigned char *dn, unsigned dnsiz);
+UDNS_API unsigned char *
 dns_a4todn_(const struct in_addr *addr, unsigned char *dn, unsigned char *dne);
 
-extern const unsigned char dns_ip6_arpa_dn[10];
+UDNS_API extern const unsigned char dns_ip6_arpa_dn[10];
 #define DNS_A6RSIZE	74
-int dns_a6todn(const struct in6_addr *addr, const unsigned char *tdn,
-               unsigned char *dn, unsigned dnsiz);
-int dns_a6ptodn(const struct in6_addr *addr, const char *tname,
-               unsigned char *dn, unsigned dnsiz);
-unsigned char *
+UDNS_API int
+dns_a6todn(const struct in6_addr *addr, const unsigned char *tdn,
+           unsigned char *dn, unsigned dnsiz);
+UDNS_API int
+dns_a6ptodn(const struct in6_addr *addr, const char *tname,
+            unsigned char *dn, unsigned dnsiz);
+UDNS_API unsigned char *
 dns_a6todn_(const struct in6_addr *addr, unsigned char *dn, unsigned char *dne);
 
 /* convert DN into asciiz string */
-int dns_dntop(const unsigned char *dn, char *name, unsigned namesiz);
+UDNS_API int
+dns_dntop(const unsigned char *dn, char *name, unsigned namesiz);
 
 /* convert DN into asciiz string, using static buffer (NOT thread-safe!) */
-const char *dns_dntosp(const unsigned char *dn);
+UDNS_API const char *
+dns_dntosp(const unsigned char *dn);
 
 /* return buffer size (incl. null byte) required for asciiz form of a DN */
-unsigned dns_dntop_size(const unsigned char *dn);
+UDNS_API unsigned
+dns_dntop_size(const unsigned char *dn);
 
 /**************************************************************************/
 /**************** DNS raw packet layout ***********************************/
@@ -174,17 +220,17 @@ enum dns_rcode {	/* reply codes */
   DNS_R_BADTIME		= 18
 };
 
-static inline unsigned dns_get16(const unsigned char *s) {
+static __inline unsigned dns_get16(const unsigned char *s) {
   return ((unsigned)s[0]<<8) | s[1];
 }
-static inline unsigned dns_get32(const unsigned char *s) {
+static __inline unsigned dns_get32(const unsigned char *s) {
   return ((unsigned)s[0]<<24) | ((unsigned)s[1]<<16)
         | ((unsigned)s[2]<<8) | s[3];
 }
-static inline unsigned char *dns_put16(unsigned char *d, unsigned n) {
+static __inline unsigned char *dns_put16(unsigned char *d, unsigned n) {
   *d++ = (n >> 8) & 255; *d++ = n & 255; return d;
 }
-static inline unsigned char *dns_put32(unsigned char *d, unsigned n) {
+static __inline unsigned char *dns_put32(unsigned char *d, unsigned n) {
   *d++ = (n >> 24) & 255; *d++ = (n >> 16) & 255;
   *d++ = (n >>  8) & 255; *d++ = n & 255;
   return d;
@@ -243,7 +289,7 @@ enum {
  * extract a DN and set *curp to the next byte after DN in packet.
  * return -1 on error, 0 if dnsiz is too small, or dnlen on ok.
  */
-int
+UDNS_API int
 dns_getdn(const unsigned char *pkt,
           const unsigned char **curp,
           const unsigned char *pkte,
@@ -251,7 +297,7 @@ dns_getdn(const unsigned char *pkt,
 
 /* skip the DN at position cur in packet ending before pkte,
  * return pointer to the next byte after the DN or NULL on error */
-const unsigned char *
+UDNS_API const unsigned char *
 dns_skipdn(const unsigned char *pkte, const unsigned char *cur);
 
 struct dns_rr {		/* DNS Resource Record */
@@ -278,42 +324,56 @@ struct dns_parse {	/* RR/packet parsing state */
 };
 
 /* initialize the parse structure */
-int dns_initparse(struct dns_parse *p, int qcls, int qtyp,
-                  const unsigned char *pkt, const unsigned char *pkte);
+UDNS_API int
+dns_initparse(struct dns_parse *p, int qcls, int qtyp,
+              const unsigned char *pkt, const unsigned char *pkte);
 
 /* search next RR, <0=error, 0=no more RRs, >0 = found. */
-int dns_nextrr(struct dns_parse *p, struct dns_rr *rr);
+UDNS_API int
+dns_nextrr(struct dns_parse *p, struct dns_rr *rr);
 
 /* equivalent to dns_initparse() followed by dns_nextrr() */
-int dns_firstrr(struct dns_parse *p, struct dns_rr *rr, int qcls, int qtyp,
-                const unsigned char *pkt, const unsigned char *pkte);
-void dns_rewind(struct dns_parse *p);
+UDNS_API int
+dns_firstrr(struct dns_parse *p, struct dns_rr *rr, int qcls, int qtyp,
+            const unsigned char *pkt, const unsigned char *pkte);
+UDNS_API void
+dns_rewind(struct dns_parse *p);
 
 
 /**************************************************************************/
 /**************** Resolver Context ****************************************/
 
 /* default resolver context */
-extern struct dns_ctx dns_defctx;
+UDNS_API extern struct dns_ctx dns_defctx;
 
 /* initialize default resolver context and open it if do_open is true.
  * <0 on failure. */
-int dns_init(int do_open);
+UDNS_API int
+dns_init(int do_open);
 
 /* return new resolver context with the same settings as copy */
-struct dns_ctx *dns_new(const struct dns_ctx *copy);
+UDNS_API struct dns_ctx *
+dns_new(const struct dns_ctx *copy);
 
 /* free resolver context; all queries are dropped */
-void dns_free(struct dns_ctx *ctx);
+UDNS_API void
+dns_free(struct dns_ctx *ctx);
 
-/* set nameserver list for a resolver context */
-int dns_set_serv(struct dns_ctx *ctx, const char *serv[]);
+/* add nameserver for a resolver context (or reset nslist if serv==NULL) */
+UDNS_API int
+dns_add_serv(struct dns_ctx *ctx, const char *serv);
 
-/* set search list for a resolver context */
-int dns_set_srch(struct dns_ctx *ctx, const char *srch[]);
+/* add nameserver using struct sockaddr array (with ports etc) */
+UDNS_API int
+dns_add_serv_s(struct dns_ctx *ctx, const struct sockaddr *sa);
+
+/* add search list element for a resolver context (or reset it if srch==NULL) */
+UDNS_API int
+dns_add_srch(struct dns_ctx *ctx, const char *srch);
 
 /* set options for a resolver context */
-int dns_set_opts(struct dns_ctx *ctx, const char *opts);
+UDNS_API int
+dns_set_opts(struct dns_ctx *ctx, const char *opts);
 
 enum dns_opt {		/* options */
   DNS_OPT_FLAGS,	/* flags, DNS_F_XXX */
@@ -325,7 +385,8 @@ enum dns_opt {		/* options */
 };
 
 /* set or get (if val<0) an option */
-int dns_set_opt(struct dns_ctx *ctx, enum dns_opt opt, int val);
+UDNS_API int
+dns_set_opt(struct dns_ctx *ctx, enum dns_opt opt, int val);
 
 enum dns_flags {
   DNS_NOSRCH	= 0x00010000,	/* do not perform search */
@@ -335,36 +396,47 @@ enum dns_flags {
 };
 
 /* set the debug function pointer */
-void dns_set_dbgfn(struct dns_ctx *ctx, void (*fn)(const unsigned char*,int));
+UDNS_API void
+dns_set_dbgfn(struct dns_ctx *ctx, void (*fn)(const unsigned char*,int));
 
 /* open and return UDP socket */
-int dns_open(struct dns_ctx *ctx);
+UDNS_API int
+dns_open(struct dns_ctx *ctx);
 
 /* return UDP socket or -1 if not open */
-int dns_sock(const struct dns_ctx *ctx);
+UDNS_API int
+dns_sock(const struct dns_ctx *ctx);
 
 /* close the UDP socket */
-void dns_close(struct dns_ctx *ctx);
+UDNS_API void
+dns_close(struct dns_ctx *ctx);
 
-/* return true if any request queued */
-int dns_active(const struct dns_ctx *ctx);
+/* return number of requests queued */
+UDNS_API int
+dns_active(const struct dns_ctx *ctx);
 
 /* return status of the last operation */
-int dns_status(const struct dns_ctx *ctx);
-void dns_setstatus(struct dns_ctx *ctx, int status);
+UDNS_API int
+dns_status(const struct dns_ctx *ctx);
+UDNS_API void
+dns_setstatus(struct dns_ctx *ctx, int status);
 
 /* handle I/O event on UDP socket */
-void dns_ioevent(struct dns_ctx *ctx, time_t now);
+UDNS_API void
+dns_ioevent(struct dns_ctx *ctx, time_t now);
 
 /* process any timeouts, return time in secounds to the
  * next timeout (or -1 if none) but not greather than maxwait */
-int dns_timeouts(struct dns_ctx *ctx, int maxwait, time_t now);
+UDNS_API int
+dns_timeouts(struct dns_ctx *ctx, int maxwait, time_t now);
 
 /* define timer requesting routine to use */
 typedef int dns_utm_fn(void *arg, struct dns_query *q, int timeout);
-void dns_set_tmcbck(struct dns_ctx *ctx, dns_utm_fn *utmfn, void *arg);
+UDNS_API void
+dns_set_tmcbck(struct dns_ctx *ctx, dns_utm_fn *utmfn, void *arg);
 /* routine to call as timer callback */
-void dns_tmevent(struct dns_query *q, time_t now);
+UDNS_API void
+dns_tmevent(struct dns_query *q, time_t now);
 
 /**************************************************************************/
 /**************** Making Queries ******************************************/
@@ -387,30 +459,32 @@ enum dns_status {
 };
 
 /* submit generic DN query */
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_dn(struct dns_ctx *ctx,
               const unsigned char *dn, int qcls, int qtyp, int flags,
               dns_parse_fn *parse, dns_query_fn *cbck, void *data, time_t now);
 /* submit generic name query */
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_p(struct dns_ctx *ctx,
              const char *name, int qcls, int qtyp, int flags,
              dns_parse_fn *parse, dns_query_fn *cbck, void *data, time_t now);
 
 /* cancel the given async query in progress */
-int dns_cancel(struct dns_ctx *ctx, struct dns_query *q);
+UDNS_API int
+dns_cancel(struct dns_ctx *ctx, struct dns_query *q);
 
 /* immediately resolve a generic query, return the answer
  * and place completion status into *statusp */
-void *
+UDNS_API void *
 dns_resolve_dn(struct dns_ctx *ctx,
                const unsigned char *qdn, int qcls, int qtyp, int flags,
                dns_parse_fn *parse);
-void *
+UDNS_API void *
 dns_resolve_p(struct dns_ctx *ctx,
               const char *qname, int qcls, int qtyp, int flags,
               dns_parse_fn *parse);
-void *dns_resolve(struct dns_ctx *ctx, struct dns_query *q);
+UDNS_API void *
+dns_resolve(struct dns_ctx *ctx, struct dns_query *q);
 
 
 /* Specific RR handlers */
@@ -425,8 +499,9 @@ struct dns_rr_null {		/* NULL RRset, aka RRset template */
   dns_rr_common(dnsn);
 };
 
-int dns_stdrr_size(const struct dns_parse *p);
-void *
+UDNS_API int
+dns_stdrr_size(const struct dns_parse *p);
+UDNS_API void *
 dns_stdrr_finish(struct dns_rr_null *ret, char *cp, const struct dns_parse *p);
 
 struct dns_rr_a4 {		/* the A RRset */
@@ -434,17 +509,17 @@ struct dns_rr_a4 {		/* the A RRset */
   struct in_addr *dnsa4_addr;	/* array of addresses, naddr elements */
 };
 
-dns_parse_fn dns_parse_a4;	/* A RR parsing routine */
-typedef void			/* A query callback routine */
+UDNS_API dns_parse_fn dns_parse_a4;	/* A RR parsing routine */
+typedef void				/* A query callback routine */
 dns_query_a4_fn(struct dns_ctx *ctx, struct dns_rr_a4 *result, void *data);
 
 /* submit A IN query */
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_a4(struct dns_ctx *ctx, const char *name, int flags,
               dns_query_a4_fn *cbck, void *data, time_t now);
 
 /* resolve A IN query */
-struct dns_rr_a4 *
+UDNS_API struct dns_rr_a4 *
 dns_resolve_a4(struct dns_ctx *ctx, const char *name, int flags);
 
 
@@ -453,17 +528,17 @@ struct dns_rr_a6 {		/* the AAAA RRset */
   struct in6_addr *dnsa6_addr;	/* array of addresses, naddr elements */
 };
 
-dns_parse_fn dns_parse_a6;	/* A RR parsing routine */
-typedef void			/* A query callback routine */
+UDNS_API dns_parse_fn dns_parse_a6;	/* A RR parsing routine */
+typedef void				/* A query callback routine */
 dns_query_a6_fn(struct dns_ctx *ctx, struct dns_rr_a6 *result, void *data);
 
 /* submit AAAA IN query */
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_a6(struct dns_ctx *ctx, const char *name, int flags,
               dns_query_a6_fn *cbck, void *data, time_t now);
 
 /* resolve AAAA IN query */
-struct dns_rr_a6 *
+UDNS_API struct dns_rr_a6 *
 dns_resolve_a6(struct dns_ctx *ctx, const char *name, int flags);
 
 
@@ -472,22 +547,22 @@ struct dns_rr_ptr {		/* the PTR RRset */
   char **dnsptr_ptr;		/* array of PTRs */
 };
 
-dns_parse_fn dns_parse_ptr;	/* PTR RR parsing routine */
-typedef void			/* PTR query callback */
+UDNS_API dns_parse_fn dns_parse_ptr;	/* PTR RR parsing routine */
+typedef void				/* PTR query callback */
 dns_query_ptr_fn(struct dns_ctx *ctx, struct dns_rr_ptr *result, void *data);
 /* submit PTR IN in-addr.arpa query */
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_a4ptr(struct dns_ctx *ctx, const struct in_addr *addr,
                  dns_query_ptr_fn *cbck, void *data, time_t now);
 /* resolve PTR IN in-addr.arpa query */
-struct dns_rr_ptr *
+UDNS_API struct dns_rr_ptr *
 dns_resolve_a4ptr(struct dns_ctx *ctx, const struct in_addr *addr);
 
 /* the same as above, but for ip6.arpa */
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_a6ptr(struct dns_ctx *ctx, const struct in6_addr *addr,
                  dns_query_ptr_fn *cbck, void *data, time_t now);
-struct dns_rr_ptr *
+UDNS_API struct dns_rr_ptr *
 dns_resolve_a6ptr(struct dns_ctx *ctx, const struct in6_addr *addr);
 
 
@@ -499,15 +574,15 @@ struct dns_rr_mx {		/* the MX RRset */
   dns_rr_common(dnsmx);
   struct dns_mx *dnsmx_mx;	/* array of MXes */
 };
-dns_parse_fn dns_parse_mx;	/* MX RR parsing routine */
-typedef void			/* MX RR callback */
+UDNS_API dns_parse_fn dns_parse_mx;	/* MX RR parsing routine */
+typedef void				/* MX RR callback */
 dns_query_mx_fn(struct dns_ctx *ctx, struct dns_rr_mx *result, void *data);
 /* submit MX IN query */
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_mx(struct dns_ctx *ctx, const char *name, int flags,
               dns_query_mx_fn *cbck, void *data, time_t now);
 /* resolve MX IN query */
-struct dns_rr_mx *
+UDNS_API struct dns_rr_mx *
 dns_resolve_mx(struct dns_ctx *ctx, const char *name, int flags);
 
 
@@ -519,58 +594,58 @@ struct dns_rr_txt {		/* the TXT RRset */
   dns_rr_common(dnstxt);
   struct dns_txt *dnstxt_txt;	/* array of TXT records */
 };
-dns_parse_fn dns_parse_txt;	/* TXT RR parsing routine */
-typedef void			/* TXT RR callback */
+UDNS_API dns_parse_fn dns_parse_txt;	/* TXT RR parsing routine */
+typedef void				/* TXT RR callback */
 dns_query_txt_fn(struct dns_ctx *ctx, struct dns_rr_txt *result, void *data);
 /* submit TXT query */
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_txt(struct dns_ctx *ctx, const char *name, int qcls, int flags,
                dns_query_txt_fn *cbck, void *data, time_t now);
 /* resolve TXT query */
-struct dns_rr_txt *
+UDNS_API struct dns_rr_txt *
 dns_resolve_txt(struct dns_ctx *ctx, const char *name, int qcls, int flags);
 
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_a4dnsbl(struct dns_ctx *ctx,
                    const struct in_addr *addr, const char *dnsbl,
                    dns_query_a4_fn *cbck, void *data, time_t now);
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_a4dnsbl_txt(struct dns_ctx *ctx,
                        const struct in_addr *addr, const char *dnsbl,
                        dns_query_txt_fn *cbck, void *data, time_t now);
-struct dns_rr_a4 *
+UDNS_API struct dns_rr_a4 *
 dns_resolve_a4dnsbl(struct dns_ctx *ctx,
                     const struct in_addr *addr, const char *dnsbl);
-struct dns_rr_txt *
+UDNS_API struct dns_rr_txt *
 dns_resolve_a4dnsbl_txt(struct dns_ctx *ctx,
                         const struct in_addr *addr, const char *dnsbl);
 
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_a6dnsbl(struct dns_ctx *ctx,
                    const struct in6_addr *addr, const char *dnsbl,
                    dns_query_a4_fn *cbck, void *data, time_t now);
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_a6dnsbl_txt(struct dns_ctx *ctx,
                        const struct in6_addr *addr, const char *dnsbl,
                        dns_query_txt_fn *cbck, void *data, time_t now);
-struct dns_rr_a4 *
+UDNS_API struct dns_rr_a4 *
 dns_resolve_a6dnsbl(struct dns_ctx *ctx,
                     const struct in6_addr *addr, const char *dnsbl);
-struct dns_rr_txt *
+UDNS_API struct dns_rr_txt *
 dns_resolve_a6dnsbl_txt(struct dns_ctx *ctx,
                         const struct in6_addr *addr, const char *dnsbl);
 
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_rhsbl(struct dns_ctx *ctx,
                  const char *name, const char *rhsbl,
                  dns_query_a4_fn *cbck, void *data, time_t now);
-struct dns_query *
+UDNS_API struct dns_query *
 dns_submit_rhsbl_txt(struct dns_ctx *ctx,
                      const char *name, const char *rhsbl,
                      dns_query_txt_fn *cbck, void *data, time_t now);
-struct dns_rr_a4 *
+UDNS_API struct dns_rr_a4 *
 dns_resolve_rhsbl(struct dns_ctx *ctx, const char *name, const char *rhsbl);
-struct dns_rr_txt *
+UDNS_API struct dns_rr_txt *
 dns_resolve_rhsbl_txt(struct dns_ctx *ctx, const char *name, const char *rhsbl);
 
 /**************************************************************************/
@@ -581,18 +656,20 @@ struct dns_nameval {
   const char *name;
 };
 
-extern const struct dns_nameval dns_classtab[];
-extern const struct dns_nameval dns_typetab[];
-extern const struct dns_nameval dns_rcodetab[];
-int dns_findname(const struct dns_nameval *nv, const char *name);
+UDNS_API extern const struct dns_nameval dns_classtab[];
+UDNS_API extern const struct dns_nameval dns_typetab[];
+UDNS_API extern const struct dns_nameval dns_rcodetab[];
+UDNS_API int
+dns_findname(const struct dns_nameval *nv, const char *name);
 #define dns_findclassname(class) dns_findname(dns_classtab, (class))
 #define dns_findtypename(type) dns_findname(dns_typetab, (type))
 #define dns_findrcodename(rcode) dns_findname(dns_rcodetab, (rcode))
 
-const char *dns_classname(enum dns_class class);
-const char *dns_typename(enum dns_type type);
-const char *dns_rcodename(enum dns_rcode rcode);
+UDNS_API const char *dns_classname(enum dns_class class);
+UDNS_API const char *dns_typename(enum dns_type type);
+UDNS_API const char *dns_rcodename(enum dns_rcode rcode);
+const char *_dns_format_code(char *buf, const char *prefix, int code);
 
-const char *dns_strerror(int errnum);
+UDNS_API const char *dns_strerror(int errnum);
 
 #endif	/* include guard */
