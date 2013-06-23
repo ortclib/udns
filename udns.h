@@ -1,4 +1,4 @@
-/* $Id: udns.h,v 1.18 2004/07/02 21:52:04 mjt Exp $
+/* $Id: udns.h,v 1.19 2004/07/09 01:18:00 mjt Exp $
  * header file for the dns library.
  */
 
@@ -331,6 +331,7 @@ enum dns_flags {
   DNS_NOSRCH	= 0x00010000,	/* do not perform search */
   DNS_NORD	= 0x00020000,	/* request no recursion */
   DNS_AAONLY	= 0x00040000,	/* set AA flag in queries */
+  DNS_PASSALL	= 0x00080000,	/* pass all replies to application */
 };
 
 /* set the debug function pointer */

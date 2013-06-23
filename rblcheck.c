@@ -1,4 +1,4 @@
-/* $Id: rblcheck.c,v 1.2 2004/07/03 01:14:36 mjt Exp $
+/* $Id: rblcheck.c,v 1.4 2004/07/09 01:16:13 mjt Exp $
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,11 +14,6 @@
 
 static const char *version = "udns-rblcheck 0.1";
 static char *progname;
-
-struct rbl {
-  const char *zone;
-  struct rbl *next;
-};
 
 struct rblookup {
   struct ipcheck *parent;
@@ -37,10 +32,11 @@ struct ipcheck {
 
 #define notlisted ((void*)1)
 
-static int nzones;
-struct rbl *rbllist, **lastrbl = &rbllist;
+static int nzones, nzalloc;
+static const char **zones;
 
 static int do_txt;
+static int stopfirst;
 static int verbose = 1;
 /* verbosity level:
  * <0 - only bare As/TXTs
@@ -63,22 +59,34 @@ static void *ecalloc(int size, int cnt) {
   return t;
 }
 
+static void addzone(const char *zone) {
+  if (nzones >= nzalloc) {
+    const char **zs = (const char**)ecalloc(sizeof(char*), (nzalloc += 16));
+    if (zones) {
+      memcpy(zs, zones, nzones * sizeof(char*));
+      free(zones);
+    }
+    zones = zs;
+  }
+  zones[nzones++] = zone;
+}
+
 static void dnserror(struct rblookup *ipl, const char *what) {
-  fprintf(stderr, "%s: unable to %s for %s(%s): %s\n",
+  fprintf(stderr, "%s: unable to %s for %s (%s): %s\n",
           progname, what, inet_ntoa(ipl->key), ipl->zone,
           dns_strerror(dns_status(0)));
   ++failures;
 }
 
-static void display_result(struct ipcheck *x) {
+static void display_result(struct ipcheck *ipc) {
   int j;
   struct rblookup *l, *le;
-  if (!x->naddr) return;
-  for (l = x->lookup, le = l + nzones * x->naddr; l < le; ++l) {
+  if (!ipc->naddr) return;
+  for (l = ipc->lookup, le = l + nzones * ipc->naddr; l < le; ++l) {
     if (!l->addr) continue;
     if (verbose < 2 && l->addr == notlisted) continue;
     if (verbose >= 0) {
-      if (x->name) printf("%s[%s]", x->name, inet_ntoa(l->key));
+      if (ipc->name) printf("%s[%s]", ipc->name, inet_ntoa(l->key));
       else printf("%s", inet_ntoa(l->key));
     }
     if (l->addr == notlisted) {
@@ -109,17 +117,19 @@ static void display_result(struct ipcheck *x) {
       free(l->txt);
     }
     else
-      printf("<no text available>");
+      printf("%s<no text available>", verbose > 0 ? "\n\t" : "");
     free(l->addr);
     putchar('\n');
   }
-  free(x->lookup);
+  free(ipc->lookup);
 }
 
 static void txtcb(struct dns_ctx *ctx, struct dns_rr_txt *r, void *data) {
   struct rblookup *ipl = data;
-  if (r)
+  if (r) {
     ipl->txt = r;
+    ++ipl->parent->listed;
+  }
   else if (dns_status(ctx) != DNS_E_NXDOMAIN)
     dnserror(ipl, "lookup DNSBL TXT record");
 }
@@ -129,10 +139,12 @@ static void a4cb(struct dns_ctx *ctx, struct dns_rr_a4 *r, void *data) {
   if (r) {
     ipl->addr = r;
     ++listed;
-    ++ipl->parent->listed;
-    if (do_txt &&
-        !dns_submit_a4dnsbl_txt(0, &ipl->key, ipl->zone, txtcb, ipl, now))
+    if (do_txt) {
+      if (dns_submit_a4dnsbl_txt(0, &ipl->key, ipl->zone, txtcb, ipl, now))
+        return;
       dnserror(ipl, "submit DNSBL TXT record");
+    }
+    ++ipl->parent->listed;
   }
   else if (dns_status(ctx) != DNS_E_NXDOMAIN)
     dnserror(ipl, "lookup DNSBL A record");
@@ -140,23 +152,22 @@ static void a4cb(struct dns_ctx *ctx, struct dns_rr_a4 *r, void *data) {
     ipl->addr = notlisted;
 }
 
-static int submit_a_queries(struct ipcheck *ipc,
-		int naddr, const struct in_addr *addr) {
+static int
+submit_a_queries(struct ipcheck *ipc,
+                 int naddr, const struct in_addr *addr) {
   int z, a;
-  struct rbl *rbl = rbllist;
   struct rblookup *rl = ecalloc(sizeof(*rl), nzones * naddr);
   ipc->lookup = rl;
   ipc->naddr = naddr;
-  for(z = 0; z < nzones; ++z) {
-    for(a = 0; a < naddr; ++a) {
+  for(a = 0; a < naddr; ++a) {
+    for(z = 0; z < nzones; ++z) {
       rl->key = addr[a];
-      rl->zone = rbl->zone;
+      rl->zone = zones[z];
       rl->parent = ipc;
       if (!dns_submit_a4dnsbl(0, &rl->key, rl->zone, a4cb, rl, now))
         dnserror(rl, "submit DNSBL A query");
       ++rl;
     }
-    rbl = rbl->next;
   }
   return 0;
 }
@@ -184,7 +195,7 @@ static int submit(struct ipcheck *ipc) {
   return 0;
 }
 
-static void waitdns(void) {
+static void waitdns(struct ipcheck *ipc) {
   struct timeval tv;
   fd_set fds;
   int c;
@@ -198,39 +209,39 @@ static void waitdns(void) {
     now = time(NULL);
     if (c > 0)
       dns_ioevent(NULL, now);
+    if (stopfirst && ipc->listed)
+      break;
   }
 }
 
 int main(int argc, char **argv) {
   int c;
-  struct rbl *rbl;
   struct ipcheck ipc;
+  char *nameserver = NULL;
 
   if (!(progname = strrchr(argv[0], '/'))) progname = argv[0];
   else argv[0] = ++progname;
 
-  while((c = getopt(argc, argv, "hqtvms:n:")) != EOF) switch(c) {
-  case 's':
-    rbl = ecalloc(sizeof(*rbl), 1);
-    rbl->zone = optarg;
-    *lastrbl = rbl;
-    lastrbl = &rbl->next;
-    ++nzones;
-    continue;
-  case 'q': --verbose; continue;
-  case 'v': ++verbose; continue;
-  case 't': do_txt = 1; continue;
-  case 'm': continue;
+  while((c = getopt(argc, argv, "hqtvms:cn:")) != EOF) switch(c) {
+  case 's': addzone(optarg); break;
+  case 'c': nzones = 0; break;
+  case 'q': --verbose; break;
+  case 'v': ++verbose; break;
+  case 't': do_txt = 1; break;
+  case 'n': nameserver = optarg; break;
+  case 'm': ++stopfirst; break;
   case 'h':
     printf("%s: %s.\n", progname, version);
     printf("Usage is: %s [options] address..\n", progname);
     printf(
 "Where options are:\n"
 " -h - print this help and exit\n"
-" -q - quiet mode, no output\n"
+" -s service - add the service (DNSBL zone) to the serice list\n"
+" -c - clear service list\n"
+" -v - increase verbosity level (more -vs => more verbose)\n"
+" -q - decrease verbosity level (opposite of -v)\n"
 " -t - obtain and print TXT records if any\n"
 " -m - stop checking after first address match in any list\n"
-" -s service - add the service (DNSBL zone) to teh serice list\n"
     );
     return 0;
   default:
@@ -238,7 +249,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  *lastrbl = NULL;
   if (!nzones) {
     fprintf(stderr, "%s: no service (zone) list specified (-s option)\n",
             progname);
@@ -259,8 +269,9 @@ int main(int argc, char **argv) {
     if (c && (verbose > 1 || (verbose == 1 && do_txt))) putchar('\n');
     ipc.name = argv[c];
     submit(&ipc);
-    waitdns();
+    waitdns(&ipc);
     display_result(&ipc);
+    if (stopfirst > 1 && listed) break;
   }
 
   return listed ? 100 : failures ? 2 : 0;

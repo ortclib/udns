@@ -1,4 +1,4 @@
-/* $Id: udns_resolver.c,v 1.15 2004/07/02 00:14:29 mjt Exp $
+/* $Id: udns_resolver.c,v 1.18 2004/07/11 10:51:46 mjt Exp $
  * resolver stuff (main module)
  */
 
@@ -21,29 +21,30 @@
 #include "udns.h"
 
 #define DNS_INTERNAL	0xffff	/* internal flags mask */
-#define DNS_SERVSENT	0x00ff	/* bitmask: nameservers we tried */
-#define DNS_INITED	0x01ff	/* the context is initialized */
-#define DNS_ASIS_SKIP	0x0200	/* skip the as-is query */
-#define DNS_ASIS_LAST	0x0400	/* perform the as-is query last */
+#define DNS_INITED	0x0001	/* the context is initialized */
+#define DNS_ASIS_DONE	0x0002	/* search: skip the last as-is query */
+#define DNS_SEEN_NODATA	0x0004	/* search: NODATA has been received */
+#define DNS_SEEN_FAIL	0x0008	/* search: SERVFAIL has been received */
 
 #define DNS_QEXTRA	16	/* size of extra buffer space */
 #define DNS_QBUF	DNS_HSIZE+DNS_MAXDN+DNS_QEXTRA
 
 struct dns_query {
   unsigned char dnsq_buf[DNS_QBUF];	/* the query buffer */
-  unsigned dnsq_len;			/* length of the query packet */
   enum dns_class dnsq_cls;		/* requested RR class */
   enum dns_type  dnsq_typ;		/* requested RR type */
-  unsigned dnsq_flags;			/* misc. flags for this query */
+  unsigned dnsq_len;			/* length of the query packet */
+  unsigned dnsq_origdnl;		/* original length of the dnsq_dn */
+  unsigned dnsq_flags;			/* control flags for this query */
+  unsigned dnsq_servi;			/* index of next server to try */
+  unsigned dnsq_servwait;		/* bitmask: servers left to wait */
+  unsigned dnsq_servskip;		/* bitmask: servers to skip */
+  unsigned dnsq_try;			/* number of tries made so far */
+  unsigned dnsq_srchi;			/* current search index */
+  time_t dnsq_deadline;			/* when current try will expire */
   dns_parse_fn *dnsq_parse;		/* parse: raw => application */
   dns_query_fn *dnsq_cbck;		/* the callback to call when done */
   void *dnsq_cbdata;			/* user data for the callback */
-  unsigned dnsq_origdnl;		/* original length of the dnsq_dn */
-  time_t dnsq_deadline;			/* when the query will "expire" */
-  unsigned dnsq_try;			/* number of tries made so far */
-  unsigned dnsq_servi;			/* current server index */
-  unsigned dnsq_srchi;			/* current search index */
-  int dnsq_srchs;			/* status from search query */
   struct dns_ctx *dnsq_ctx;		/* the resolver context */
   struct dns_query *dnsq_next;		/* active list */
 };
@@ -394,12 +395,15 @@ void dns_setstatus(struct dns_ctx *ctx, int status) {
   ctx->dnsc_qstatus = status;
 }
 
-static inline void
-dns_utimer_cancel(struct dns_ctx *ctx, struct dns_query *q) {
-  if (ctx->dnsc_utmfn)
-    ctx->dnsc_utmfn(ctx->dnsc_uctx, q, 0);
-}
+#define dns_utimer_cancel(ctx, q) \
+  if (ctx->dnsc_utmfn) ctx->dnsc_utmfn(ctx->dnsc_uctx, q, 0)
 
+/* end the query and return the result.
+ * qp points to the previous entry in active list, OR it may be NULL
+ * if dns_end_query called from dns_submit() - in the latrer case,
+ * if query wasn't successeful, don't call the callback but just
+ * return the error code.
+ */
 static int
 dns_end_query(struct dns_query *q, struct dns_query **qp,
               int status, void *result) {
@@ -407,35 +411,40 @@ dns_end_query(struct dns_query *q, struct dns_query **qp,
   dns_query_fn *cbck = q->dnsq_cbck;
   void *cbdata = q->dnsq_cbdata;
   ctx->dnsc_qstatus = status;
-  if (*qp) {
-    assert(cbck != NULL);
+  if (qp) {
+    assert(cbck != NULL);	/*XXX callback may be NULL */
+    assert(*qp == q);
     *qp = q->dnsq_next;
   }
-  else {
+#ifndef NODEBUG
+  else
     /* if there's no qp, this is new, just-submitted query */
     assert(status < 0);
-  }
+  if (status < 0)
+    assert(result == NULL);
+  else
+    assert(result != NULL);
+#endif
   /* force the query to be unconnected */
   /*memset(q, 0, sizeof(*q));*/
   q->dnsq_ctx = NULL;
   free(q);
-  /*XXX a query may have no callback, right? */
   if (qp)
-    cbck(ctx, status < 0 ? 0 : result, cbdata);
+    cbck(ctx, result, cbdata);
   return status;
 }
 
-static int dns_next_srch(struct dns_ctx *ctx, struct dns_query *q) {
+static int dns_next_srch(struct dns_query *q) {
   int ol = q->dnsq_origdnl - 1;
   unsigned char *p = dns_payload(q->dnsq_buf) + ol;
   const unsigned char *dn;
   int n;
-  while (q->dnsq_srchi < ctx->dnsc_nsrch) {
-    dn = ctx->dnsc_srch[q->dnsq_srchi++];
+  while (q->dnsq_srchi < q->dnsq_ctx->dnsc_nsrch) {
+    dn = q->dnsq_ctx->dnsc_srch[q->dnsq_srchi++];
     if (!*dn) {			/* root dn */
-      if (q->dnsq_flags & DNS_ASIS_SKIP)
+      if (q->dnsq_flags & DNS_ASIS_DONE)
         continue;
-      q->dnsq_flags |= DNS_ASIS_SKIP;
+      q->dnsq_flags |= DNS_ASIS_DONE;
       *p = '\0';
       n = 1;
     }
@@ -446,49 +455,43 @@ static int dns_next_srch(struct dns_ctx *ctx, struct dns_query *q) {
   return 0;
 }
 
-static int
-dns_search_next(struct dns_ctx *ctx, struct dns_query *q, int status) {
-  unsigned char save[DNS_QEXTRA+4];
-  unsigned char *p;
-  unsigned l, sl;
-
-  if (q->dnsq_flags & DNS_NOSRCH)
-    return status;
-  if (!q->dnsq_srchs)
-    q->dnsq_srchs = status;
-
-  p = dns_payload(q->dnsq_buf);
-  l = dns_dnlen(p);
-  sl = q->dnsq_len - l - DNS_HSIZE;
-  assert(sl <= sizeof(save));
-  memcpy(save, p + l, sl); 
-  l = dns_next_srch(ctx, q);
-  if (!l) {
-    if (!(q->dnsq_flags & DNS_ASIS_LAST))
-      return q->dnsq_srchs;
-    q->dnsq_flags &= ~DNS_ASIS_LAST;
-    l = q->dnsq_origdnl;
-    p[l-1] = '\0';
+/* find the next server which isn't skipped starting from current.
+ * return 0 if ok, >0 if ok but we started next cycle, or <0 if
+ * number of tries exceeded or no more servers.
+ */
+static int dns_find_serv(struct dns_query *q) {
+  int cycle;
+  struct dns_ctx *ctx = q->dnsq_ctx;
+  if (q->dnsq_try < ctx->dnsc_ntries) for(cycle = 0;;) {
+    if (q->dnsq_servi < ctx->dnsc_nserv) {
+      if (!(q->dnsq_servskip & (1 << q->dnsq_servi)))
+        return cycle;
+      ++q->dnsq_servi;
+    }
+    else if (cycle || ++q->dnsq_try >= ctx->dnsc_ntries)
+      break;
+    else {
+      cycle = 1;
+      q->dnsq_servi = 0;
+    }
   }
-  memcpy(p + l, save, sl);
-  q->dnsq_len = p + l + sl - q->dnsq_buf;
-  q->dnsq_try = 0; q->dnsq_servi = 0;
-  q->dnsq_flags &= ~DNS_SERVSENT;
-  return 0;
+  return -1;
 }
 
 static int
-dns_resend(struct dns_query *q, struct dns_query **qp, int n, time_t now) {
+dns_send(struct dns_query *q, struct dns_query **qp, time_t now) {
   struct dns_ctx *ctx = q->dnsq_ctx;
+  int n;
 
-  if (n && ++q->dnsq_servi >= ctx->dnsc_nserv) {
-    if (++q->dnsq_try >= ctx->dnsc_ntries) {
-      n = q->dnsq_srchs ? q->dnsq_srchs : DNS_E_TEMPFAIL;
-      assert(n < 0);
-      return dns_end_query(q, qp, n, 0);
-    }
-    q->dnsq_servi = 0;
-  }
+  /* if we can't send the query, return TEMPFAIL even when searching:
+   * we can't be sure whenever the name we tried to search exists or not,
+   * so don't continue searching, or we may find the wrong name. */
+
+  /* if there's no more servers, fail the query */
+  n = dns_find_serv(q);
+  if (n < 0)
+    return dns_end_query(q, qp, DNS_E_TEMPFAIL, 0);
+
   /* send the query */
   n = 10;
   while (sendto(ctx->dnsc_udpsock, q->dnsq_buf, q->dnsq_len, 0,
@@ -503,17 +506,18 @@ dns_resend(struct dns_query *q, struct dns_query **qp, int n, time_t now) {
     /* if we can't send the query, fail it. */
     return dns_end_query(q, qp, DNS_E_TEMPFAIL, 0);
   }
+  q->dnsq_servwait |= 1 << q->dnsq_servi;	/* expect reply from this ns */
 
-  /* we sent this query to this nameserver */
-  q->dnsq_flags |= 1 << q->dnsq_servi;
+  /* advance to the next server, and choose a timeout.
+   * we will try next server in 1 secound, but start next
+   * cycle waiting for proper timeout. */
+  ++q->dnsq_servi;
+  n = dns_find_serv(q) ? ctx->dnsc_timeout << (q->dnsq_try - 1) : 1;
 
-  /* set up the timeout, report error if failed */
-  n = q->dnsq_try ?
-    ctx->dnsc_timeout << q->dnsq_try / ctx->dnsc_nserv : ctx->dnsc_timeout;
+  /* request timer, report error if failed */
   if (ctx->dnsc_utmfn &&
-      ctx->dnsc_utmfn(ctx->dnsc_uctx, q, n) != 0) {
-    return dns_end_query(q, qp, DNS_E_TEMPFAIL, 0);
-  }
+      ctx->dnsc_utmfn(ctx->dnsc_uctx, q, n) != 0)
+    return dns_end_query(q, qp, DNS_E_NOMEM, 0);	/* assume NOMEM */
 
   q->dnsq_deadline = (now ? now : time(NULL)) + n;
   return 0;
@@ -538,6 +542,12 @@ dns_submit_dn(struct dns_ctx *ctx,
     ctx->dnsc_qstatus = DNS_E_NOMEM;
     return NULL;
   }
+
+  q->dnsq_ctx = ctx;
+  q->dnsq_parse = parse;
+  q->dnsq_cbck = cbck ? cbck : dns_dummy_cb;
+  q->dnsq_cbdata = data;
+
   flags = (flags | ctx->dnsc_flags) & ~DNS_INTERNAL;
   if (!ctx->dnsc_nsrch) q->dnsq_flags |= DNS_NOSRCH;
   if (!(flags & DNS_NORD)) q->dnsq_buf[DNS_H_F1] |= DNS_HF1_RD;
@@ -548,14 +558,10 @@ dns_submit_dn(struct dns_ctx *ctx,
   assert(q->dnsq_origdnl > 0 && q->dnsq_origdnl <= DNS_MAXDN);
   memcpy(dns_payload(q->dnsq_buf), dn, q->dnsq_origdnl);
   p = dns_payload(q->dnsq_buf) + q->dnsq_origdnl;
-  if (flags & DNS_NOSRCH)
-    ;
-  else if (dns_dnlabels(dn) > ctx->dnsc_ndots)
-    flags |= DNS_ASIS_SKIP;
-  else if ((dnl = dns_next_srch(ctx, q)) > 0) {
+  if (flags & DNS_NOSRCH || dns_dnlabels(dn) > ctx->dnsc_ndots)
+    flags |= DNS_ASIS_DONE;
+  else if ((dnl = dns_next_srch(q)) > 0)
     p = dns_payload(q->dnsq_buf) + dnl;
-    flags |= DNS_ASIS_LAST;
-  }
   else
     p[-1] = '\0';
   q->dnsq_flags = flags;
@@ -575,16 +581,14 @@ dns_submit_dn(struct dns_ctx *ctx,
   assert(p <= q->dnsq_buf + DNS_QBUF);
   q->dnsq_len = p - q->dnsq_buf;
 
-  q->dnsq_parse = parse;
-  q->dnsq_cbck = cbck ? cbck : dns_dummy_cb;
-  q->dnsq_cbdata = data;
-  q->dnsq_ctx = ctx;
-
   /* caution: we're trying to submit a query
    * which isn't yet in the active list! */
-  if (dns_resend(q, NULL, 0, now) == 0) {
-    q->dnsq_next = ctx->dnsc_qactive;
-    ctx->dnsc_qactive = q;
+  if (dns_send(q, NULL, now) == 0) {
+    /* all is ok, put the query to the end of list */
+    struct dns_query **qp = &ctx->dnsc_qactive;
+    while(*qp) qp = &(*qp)->dnsq_next;
+    *qp = q;
+    q->dnsq_next = NULL;
     return q;
   }
   else /* dns_end_query() freed the query object for us */
@@ -619,7 +623,7 @@ void dns_tmevent(struct dns_query *q, time_t now) {
     assert((*qp)->dnsq_ctx == ctx);
     qp = &(*qp)->dnsq_next;
   }
-  dns_resend(q, qp, 1, now);
+  dns_send(q, qp, now);
 }
 
 /* process readable fd condition.
@@ -635,7 +639,7 @@ void dns_tmevent(struct dns_query *q, time_t now) {
  * Current loop/goto looks just terrible... */
 void dns_ioevent(struct dns_ctx *ctx, time_t now) {
   int r;
-  unsigned servi;
+  unsigned l, servi;
   struct dns_query *q, **qp;
   unsigned char *pbuf;
   void *result;
@@ -652,6 +656,7 @@ again:
   for(;;) { /* receive the reply */
     struct sockaddr_in sin;
     socklen_t sinlen;
+
     sinlen = sizeof(sin);
     r = recvfrom(ctx->dnsc_udpsock, pbuf, ctx->dnsc_udpbuf, 0,
                  (struct sockaddr *)&sin, &sinlen);
@@ -693,75 +698,126 @@ again:
     if (dns_tc(pbuf))
       continue;	/* just ignore response for now.. any hope? */
 
-    /* find the request for this reply, in active queue
-     * (by looking at QID).
+    /* find the request for this reply in active queue
      * Note we pick any request, even queued for another
      * server - in case first server replies a bit later
      * than we expected. */
     for (qp = &ctx->dnsc_qactive; ; qp = &q->dnsq_next) {
-      int l;
       if (!(q = *qp))	/* no more requests: old reply? */
         goto again;
-      /* skip requests that has not been sent to this
-       * server yet. */
-      if (!(q->dnsq_flags & (1 << servi)))
+      /* ignore replies that has not been sent to this server.
+       * Note dnsq_servi is the *next* server to try. */
+      if (!q->dnsq_try && q->dnsq_servi <= servi)
         continue;
+      /*XXX ignore replies from servers we're ignoring? o/
+      if (q->dnsq_servskip & (1 << servi))
+        continue; */
+      /* check qID */
       if (q->dnsq_buf[DNS_H_QID1] != pbuf[DNS_H_QID1] ||
           q->dnsq_buf[DNS_H_QID2] != pbuf[DNS_H_QID2])
         continue;
+      /* check qDN */
       if (!(l = dns_dnequal(dns_payload(q->dnsq_buf), dns_payload(pbuf))))
         continue;
-      if (DNS_HSIZE + l + 4 > r)
+      if (DNS_HSIZE + l + 4 > (unsigned)r)	/* short packet? */
         goto again;
+      /* check qCLS and qTYP */
       if (memcmp(dns_payload(q->dnsq_buf) + l, dns_payload(pbuf) + l, 4) != 0)
         continue;
+      /* ok, this is expected reply with matching query. */
       break;
     }
+
     break;
 
   }
 
   /* we got a reply for our query */
-  dns_utimer_cancel(ctx, q);
+  q->dnsq_servwait &= ~(1 << servi);	/* don't expect reply from this serv */
 
   /* process the RCODE */
   switch(dns_rcode(pbuf)) {
 
-  case DNS_R_SERVFAIL:
-  case DNS_R_NOTIMPL:
-  case DNS_R_REFUSED:
-    /* for these rcodes, advance this request
-     * to the next server and reschedule */
-  default: /* unknown rcode? hmmm... */
-    dns_resend(q, qp, 1, now);
-    goto again;
-
-  case DNS_R_NXDOMAIN:
-    if ((r = dns_search_next(ctx, q, DNS_E_NXDOMAIN)) == 0)
-      dns_resend(q, qp, 0, now);
-    else
-      dns_end_query(q, qp, r, 0);
-    break;
-
   case DNS_R_NOERROR:
-    if (!dns_numan(pbuf)) {
-      if ((r = dns_search_next(ctx, q, DNS_E_NODATA)) == 0)
-        dns_resend(q, qp, 0, now);
-      else
-        dns_end_query(q, qp, r, 0);
+    dns_utimer_cancel(ctx, q);
+    if (!dns_numan(pbuf)) {	/* no data of requested type */
+      q->dnsq_flags |= DNS_SEEN_NODATA;
+      r = DNS_E_NODATA;
       break;
     }
+    /* the only case where we may succeed */
     if (q->dnsq_parse)
       r = q->dnsq_parse(pbuf, pbuf + r, &result);
     else if ((result = malloc(r)) != NULL)
       memcpy(result, pbuf, r);
     else
       r = DNS_E_NOMEM;
+    /* (maybe) successeful answer (modulo nomem and parsing probs) */
+    /* note we pass DNS_E_NODATA here */
     dns_end_query(q, qp, r, result);
+    goto again;
+
+  case DNS_R_NXDOMAIN:
+    dns_utimer_cancel(ctx, q);
+    r = DNS_E_NXDOMAIN;
     break;
+
+  case DNS_R_SERVFAIL:
+    q->dnsq_flags |= DNS_SEEN_FAIL;
+  case DNS_R_NOTIMPL:
+  case DNS_R_REFUSED:
+    /* for these rcodes, advance this request
+     * to the next server and reschedule */
+  default: /* unknown rcode? hmmm... */
+    /* try next server */
+    q->dnsq_servskip |= 1 << servi;	/* don't retry this server */
+    if (!q->dnsq_servwait) {
+      dns_utimer_cancel(ctx, q);
+      dns_send(q, qp, now);
+    }
+    goto again;
 
   }
 
+  /* here we have either NODATA or NXDOMAIN */
+  if (!(q->dnsq_flags & DNS_NOSRCH)) {
+    /* try next element from search list */
+    unsigned char save[DNS_QEXTRA+4];
+    unsigned char *p;
+    unsigned sl;
+
+    /* at this point, l contains length of the DN in question */
+    p = dns_payload(pbuf);
+    sl = q->dnsq_len - l - DNS_HSIZE;
+    assert(sl <= sizeof(save));
+    memcpy(save, p + l, sl); 
+    l = dns_next_srch(q);
+    if (l || !(q->dnsq_flags & DNS_ASIS_DONE)) {
+      if (!l) {
+        q->dnsq_flags |= DNS_ASIS_DONE;
+        l = q->dnsq_origdnl;
+        p[l-1] = '\0';
+      }
+      /* something's found */
+      memcpy(p + l, save, sl);
+      q->dnsq_len = p + l + sl - q->dnsq_buf;
+      q->dnsq_try = 0; q->dnsq_servi = 0;
+      q->dnsq_servwait = q->dnsq_servskip = 0;
+      dns_send(q, qp, now);
+      goto again;
+    }
+    /* else we have nothing more to search, end the query. */
+    if (q->dnsq_flags & DNS_SEEN_FAIL)
+      /* at least one server/query failed, fail the query */
+      r = DNS_E_TEMPFAIL;
+    else if (q->dnsq_flags & DNS_SEEN_NODATA)
+      /* for one domain we have seen NODATA, return it */
+      r = DNS_E_NODATA;
+    else /* else all should be NXDOMAINs */
+      r = DNS_E_NXDOMAIN;
+  }
+
+  dns_end_query(q, qp, r, 0);
   goto again;
 }
 
@@ -775,7 +831,7 @@ int dns_timeouts(struct dns_ctx *ctx, int maxwait, time_t now) {
   qp = &ctx->dnsc_qactive;
   while ((q = *qp) != NULL) {
     if (q->dnsq_deadline <= now &&
-        dns_resend(q, qp, 1, now) != 0) {
+        dns_send(q, qp, now) != 0) {
       /* start over */
       qp = &ctx->dnsc_qactive;
       towait = maxwait;

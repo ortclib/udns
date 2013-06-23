@@ -1,3 +1,5 @@
+/* $Id: dnsget.c,v 1.3 2004/07/11 10:34:40 mjt Exp $
+ */
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -108,7 +110,7 @@ printsection(const unsigned char *pkt,
 
     case DNS_T_A:
       if (dsz != 4) xperr();
-      else printf("%d.%d.%d.%d\n", dptr[3], dptr[2], dptr[1], dptr[0]);
+      else printf("%d.%d.%d.%d\n", dptr[0], dptr[1], dptr[2], dptr[3]);
       break;
 
     case DNS_T_AAAA:

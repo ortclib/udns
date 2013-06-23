@@ -1,13 +1,6 @@
-$Id: TODO,v 1.6 2004/07/01 10:50:03 mjt Exp $
+$Id: TODO,v 1.7 2004/07/11 11:18:36 mjt Exp $
 
 The following is mostly an internal, not user-visible stuff.
-
-* check the search return: when we performed a name search, we may
-  have several results, in particular, TEMPFAIL, NODATA and NXDOMAIN
-  all may be here.  What to return in which case (dns_search_next()).
-  Maybe fail the query if any probe returned TEMPFAIL, to be safe we
-  haven't missed anything?  Standard libresolv does quite strange
-  thing here.
 
 * allow NULL callbacks?  Or provide separate resolver
   context list of queries which are done but wich did not

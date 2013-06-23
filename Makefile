@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.17 2004/07/03 01:14:04 mjt Exp $
+# $Id: Makefile,v 1.18 2004/07/11 11:17:40 mjt Exp $
 # libudns Makefile
 #
 UDNS_SRCS = udns_dn.c udns_dntosp.c udns_parse.c udns_resolver.c udns_misc.c \
@@ -10,7 +10,7 @@ UDNS_DIST = udns.h udns.3 $(UDNS_SRCS) Makefile TODO $(UDNS_UTIL)
 UDNS_OBJS = $(UDNS_SRCS:.c=.o) $(UDNS_GENS:.c=.o)
 UDNS_NAME = udns
 UDNS_LIBS = lib$(UDNS_NAME).a
-UDNS_VERS = 0.0.3
+UDNS_VERS = 0.0.4
 
 CFLAGS = -Wall -W -Wmissing-prototypes -O2 -DHAVE_POLL
 AWK = awk
