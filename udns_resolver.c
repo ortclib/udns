@@ -1,4 +1,4 @@
-/* $Id: udns_resolver.c,v 1.98 2007/01/10 13:32:33 mjt Exp $
+/* $Id: udns_resolver.c,v 1.106 2010-12-02 09:49:16 mjt Exp $
    resolver stuff (main module)
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -182,7 +182,8 @@ struct dns_ctx {		/* resolver context */
   dns_dbgfn *dnsc_udbgfn;		/* debugging function */
 
   /* dynamic data */
-  unsigned dnsc_nextid;		/* next queue ID to use */
+  struct udns_jranctx dnsc_jran;	/* random number generator state */
+  unsigned dnsc_nextid;			/* next queue ID to use if !0 */
   int dnsc_udpsock;			/* UDP socket */
   struct dns_qlink dnsc_qactive;	/* active list sorted by deadline */
   int dnsc_nactive;			/* number entries in dnsc_qactive */
@@ -405,18 +406,28 @@ dns_set_tmcbck(struct dns_ctx *ctx, dns_utm_fn *fn, void *data) {
     dns_request_utm(ctx, 0);
 }
 
-unsigned dns_random16(void) {
+static unsigned dns_nonrandom_32(void) {
 #ifdef WINDOWS
   FILETIME ft;
   GetSystemTimeAsFileTime(&ft);
-#define x (ft.dwLowDateTime)
+  return ft.dwLowDateTime;
 #else
   struct timeval tv;
   gettimeofday(&tv, NULL);
-#define x (tv.tv_usec)
+  return tv.tv_usec;
 #endif
-  return ((unsigned)x ^ ((unsigned)x >> 16)) & 0xffff;
-#undef x
+}
+
+/* This is historic deprecated API */
+UDNS_API unsigned dns_random16(void);
+unsigned dns_random16(void) {
+  unsigned x = dns_nonrandom_32();
+  return (x ^ (x >> 16)) & 0xffff;
+}
+
+static void dns_init_rng(struct dns_ctx *ctx) {
+  udns_jraninit(&ctx->dnsc_jran, dns_nonrandom_32());
+  ctx->dnsc_nextid = 0;
 }
 
 void dns_close(struct dns_ctx *ctx) {
@@ -450,7 +461,7 @@ void dns_reset(struct dns_ctx *ctx) {
   ctx->dnsc_udpsock = -1;
   ctx->dnsc_srchend = ctx->dnsc_srchbuf;
   qlist_init(&ctx->dnsc_qactive);
-  ctx->dnsc_nextid = dns_random16();
+  dns_init_rng(ctx);
   ctx->dnsc_flags = DNS_INITED;
 }
 
@@ -467,9 +478,11 @@ struct dns_ctx *dns_new(const struct dns_ctx *copy) {
   ctx->dnsc_nactive = 0;
   ctx->dnsc_pbuf = NULL;
   ctx->dnsc_qstatus = 0;
+  ctx->dnsc_srchend = ctx->dnsc_srchbuf +
+    (copy->dnsc_srchend - copy->dnsc_srchbuf);
   ctx->dnsc_utmfn = NULL;
   ctx->dnsc_utmctx = NULL;
-  ctx->dnsc_nextid = dns_random16();
+  dns_init_rng(ctx);
   return ctx;
 }
 
@@ -529,7 +542,7 @@ int dns_open(struct dns_ctx *ctx) {
       sns = &ctx->dnsc_serv[i];
       if (sns->sa.sa_family == AF_INET) {
         sin6.sin6_port = sns->sin.sin_port;
-        ((struct in_addr*)&sin6.sin6_addr)[3] = sns->sin.sin_addr;
+        memcpy(sin6.sin6_addr.s6_addr + 4*3, &sns->sin.sin_addr, 4);
         sns->sin6 = sin6;
       }
     }
@@ -689,12 +702,32 @@ static void dns_newid(struct dns_ctx *ctx, struct dns_query *q) {
    * Note that ALL stub resolvers (again, unless they implement and enforce
    * DNSSEC) suffers from this same problem.
    *
-   * So, instead of trying to be more secure (which actually is not - false
-   * sense of security is - I think - is worse than no security), I'm trying
-   * to be more robust here (by preventing qID reuse, which helps in normal
-   * conditions).  And use sequential qID generation scheme.
+   * Here, I use a pseudo-random number generator for qIDs, instead of a
+   * simpler sequential IDs.  This is _not_ more secure than sequential
+   * ID, but some found random IDs more enjoyeable for some reason.  So
+   * here it goes.
    */
-  dns_put16(q->dnsq_id, ctx->dnsc_nextid++);
+
+  /* Use random number and check if it's unique.
+   * If it's not, try again up to 5 times.
+   */
+  unsigned loop;
+  dnsc_t c0, c1;
+  for(loop = 0; loop < 5; ++loop) {
+    const struct dns_query *c;
+    if (!ctx->dnsc_nextid)
+      ctx->dnsc_nextid = udns_jranval(&ctx->dnsc_jran);
+    c0 = ctx->dnsc_nextid & 0xff;
+    c1 = (ctx->dnsc_nextid >> 8) & 0xff;
+    ctx->dnsc_nextid >>= 16;
+    QLIST_FOR_EACH(&ctx->dnsc_qactive, c, next)
+      if (c->dnsq_id[0] == c0 && c->dnsq_id[1] == c1)
+        break; /* found such entry, try again */
+    if (QLIST_ISLAST(&ctx->dnsc_qactive, c))
+      break;
+  }
+  q->dnsq_id[0] = c0; q->dnsq_id[1] = c1;
+
   /* reset all parameters relevant for previous query lifetime */
   q->dnsq_try = 0;
   q->dnsq_servi = 0;
@@ -754,6 +787,7 @@ dns_send_this(struct dns_ctx *ctx, struct dns_query *q,
     memset(p, 0, DNS_HSIZE);
     if (!(q->dnsq_flags & DNS_NORD)) p[DNS_H_F1] |= DNS_HF1_RD;
     if (q->dnsq_flags & DNS_AAONLY) p[DNS_H_F1] |= DNS_HF1_AA;
+    if (q->dnsq_flags & DNS_SET_CD) p[DNS_H_F2] |= DNS_HF2_CD;
     p[DNS_H_QDCNT2] = 1;
     memcpy(p + DNS_H_QID, q->dnsq_id, 2);
     p = dns_payload(p);
@@ -761,14 +795,17 @@ dns_send_this(struct dns_ctx *ctx, struct dns_query *q,
     p += dns_dntodn(q->dnsq_dn, p, DNS_MAXDN);
     /* query type and class */
     memcpy(p, q->dnsq_typcls, 4); p += 4;
-    /* add EDNS0 size record */
-    if (ctx->dnsc_udpbuf > DNS_MAXPACKET &&
-        !(q->dnsq_servnEDNS0 & (1 << servi))) {
+    /* add EDNS0 record. DO flag requires it */
+    if (q->dnsq_flags & DNS_SET_DO ||
+        (ctx->dnsc_udpbuf > DNS_MAXPACKET &&
+         !(q->dnsq_servnEDNS0 & (1 << servi)))) {
       *p++ = 0;			/* empty (root) DN */
       p = dns_put16(p, DNS_T_OPT);
       p = dns_put16(p, ctx->dnsc_udpbuf);
       /* EDNS0 RCODE & VERSION; rest of the TTL field; RDLEN */
-      memset(p, 0, 2+2+2); p += 2+2+2;
+      memset(p, 0, 2+2+2);
+      if (q->dnsq_flags & DNS_SET_DO) p[2] |= DNS_EF1_DO;
+      p += 2+2+2;
       ctx->dnsc_pbuf[DNS_H_ARCNT2] = 1;
     }
     qlen = p - ctx->dnsc_pbuf;
@@ -895,6 +932,11 @@ dns_submit_dn(struct dns_ctx *ctx,
     dns_next_srch(ctx, q);
   }
 
+  /* q->dnsq_deadline is set to 0 (calloc above): the new query is
+   * "already expired" when first inserted into queue, so it's safe
+   * to insert it into the head of the list.  Next call to dns_timeouts()
+   * will actually send it.
+   */
   qlist_add_head(q, &ctx->dnsc_qactive);
   ++ctx->dnsc_nactive;
   dns_request_utm(ctx, 0);

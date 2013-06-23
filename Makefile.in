@@ -1,5 +1,5 @@
 #! /usr/bin/make -rf
-# $Id: Makefile.in,v 1.11 2007/01/15 21:19:08 mjt Exp $
+# $Id: Makefile.in,v 1.16 2010-12-27 17:35:02 mjt Exp $
 # libudns Makefile
 #
 # Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -21,13 +21,14 @@
 # Suite 330, Boston, MA  02111-1307  USA
 
 NAME   = udns
-VERS   = 0.0.9
+VERS   = 0.1
+SOVER  = 0
+
 SRCS   = udns_dn.c udns_dntosp.c udns_parse.c udns_resolver.c udns_init.c \
 	udns_misc.c udns_XtoX.c \
 	udns_rr_a.c udns_rr_ptr.c udns_rr_mx.c udns_rr_txt.c udns_bl.c \
-	udns_rr_srv.c udns_rr_naptr.c udns_codes.c
+	udns_rr_srv.c udns_rr_naptr.c udns_codes.c udns_jran.c
 USRCS  = dnsget.c rblcheck.c ex-rdns.c
-DEB    = debian/copyright debian/changelog debian/control debian/rules
 DIST   = COPYING.LGPL udns.h udns.3 dnsget.1 rblcheck.1 $(SRCS) $(USRCS) \
 	 NEWS TODO NOTES Makefile.in configure configure.lib \
 	 inet_XtoX.c getopt.c
@@ -36,7 +37,6 @@ OBJS   = $(SRCS:.c=.o) $(GEN:.c=.o)
 LIB    = lib$(NAME).a
 LIBFL  = -L. -l$(NAME)
 
-SOVER  = 0
 SOBJS  = $(OBJS:.o=.lo)
 SOLIB  = lib$(NAME)_s.so
 SOLIBV = lib$(NAME).so.$(SOVER)
@@ -112,10 +112,9 @@ udns.3.html: udns.3
 	mv $@.tmp $@
 
 dist: $(NAMEPFX).tar.gz
-$(NAMEPFX).tar.gz: $(DIST) $(DEB)
-	mkdir $(NAMEPFX) $(NAMEPFX)/debian
+$(NAMEPFX).tar.gz: $(DIST)
+	mkdir $(NAMEPFX)
 	ln $(DIST) $(NAMEPFX)
-	ln $(DEB) $(NAMEPFX)/debian
 	tar cvfz $@ $(NAMEPFX)
 	rm -rf $(NAMEPFX)
 subdist:
@@ -125,7 +124,7 @@ clean:
 	rm -f $(OBJS)
 	rm -f $(SOBJS)
 	rm -f $(UOBJS)
-	rm -f build-stamp config.log
+	rm -f config.log
 distclean: clean
 	rm -f $(LIBS) $(SOLIB) udns.3.html
 	rm -f $(UTILS) $(SOUTILS)
@@ -179,8 +178,9 @@ udns_bl.o udns_bl.lo: udns_bl.c udns.h
 udns_rr_srv.o udns_rr_srv.lo: udns_rr_srv.c udns.h
 udns_rr_naptr.o udns_rr_naptr.lo: udns_rr_naptr.c udns.h
 udns_codes.o udns_codes.lo: udns_codes.c udns.h
+udns_jran.o udns_jran.lo: udns_jran.c udns.h
 dnsget.o dnsget.lo: dnsget.c config.h udns.h getopt.c
-rblcheck.o rblcheck.lo: rblcheck.c udns.h getopt.c
+rblcheck.o rblcheck.lo: rblcheck.c config.h udns.h getopt.c
 ex-rdns.o ex-rdns.lo: ex-rdns.c udns.h
 dnsget: dnsget.o $(LIB)
 	$(CC) $(CFLAGS) -o $@ dnsget.o $(LIBFL)

@@ -1,4 +1,4 @@
-/* $Id: udns_dn.c,v 1.7 2006/11/28 22:45:20 mjt Exp $
+/* $Id: udns_dn.c,v 1.8 2010-12-27 17:14:17 mjt Exp $
    domain names manipulation routines
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -148,12 +148,10 @@ dnscc_t dns_inaddr_arpa_dn[14] = "\07in-addr\04arpa";
 
 dnsc_t *
 dns_a4todn_(const struct in_addr *addr, dnsc_t *dn, dnsc_t *dne) {
-  dnsc_t *p;
-  unsigned n;
-  dnscc_t *s = ((dnscc_t *)addr) + 4;
-  while(--s >= (dnscc_t *)addr) {
-    n = *s;
-    p = dn + 1;
+  const unsigned char *s = ((const unsigned char *)addr) + 4;
+  while(s > (const unsigned char *)addr) {
+    unsigned n = *--s;
+    dnsc_t *p = dn + 1;
     if (n > 99) {
       if (p + 2 > dne) return 0;
       *p++ = n / 100 + '0';
@@ -206,12 +204,11 @@ dnscc_t dns_ip6_arpa_dn[10] = "\03ip6\04arpa";
 
 dnsc_t *
 dns_a6todn_(const struct in6_addr *addr, dnsc_t *dn, dnsc_t *dne) {
-  unsigned n;
-  dnscc_t *s = ((dnscc_t *)addr) + 16;
+  const unsigned char *s = ((const unsigned char *)addr) + 16;
   if (dn + 64 > dne) return 0;
-  while(--s >= (dnscc_t *)addr) {
+  while(s > (const unsigned char *)addr) {
+    unsigned n = *--s & 0x0f;
     *dn++ = 1;
-    n = *s & 0x0f;
     *dn++ = n > 9 ? n + 'a' - 10 : n + '0';
     *dn++ = 1;
     n = *s >> 4;

@@ -1,4 +1,4 @@
-.\" $Id: dnsget.1,v 1.3 2005/04/20 00:55:34 mjt Exp $
+.\" $Id: dnsget.1,v 1.4 2010-12-01 19:50:38 mjt Exp $
 .\" dnsget manpage
 .\"
 .\" Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -33,6 +33,8 @@ dnsget \- DNS lookup utility
 .IR type \|]
 .RB [\| \-o
 .IR option : value \]
+.RB [\| \-f
+.IR flag \]
 .IR name \|.\|.\|.
 
 .SH DESCRIPTION
@@ -148,6 +150,15 @@ EDNS0 (RFC 2671) extensions will be used.
 \fBport\fR:\fInum\fR
 Use given UDP port number \fInum\fR instead of the default port 53 (domain).
 .RE
+
+.TP
+\fB\-f \fIflag\fR
+Set resolver flag \fIflag\fR:
+\fBaa\fR \- set AA (auth only) bit;
+\fBnord\fR \- do not set RD (recursion desired) bit (set by default);
+\fBdnssec\fR or \fBdo\fR \- set DNSSEC OK (DO) flag (\fBdnsget\fR does not
+verify DNSSEC signatures, only displays them; this is set in EDNS RR);
+\fBcd\fR \- set CD (checking disabled) bit.
 
 .TP
 \fB\-n \fInameserver\fR
