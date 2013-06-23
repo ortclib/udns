@@ -1,4 +1,4 @@
-/* $Id: dnsget.c,v 1.18 2005/05/16 12:43:26 mjt Exp $
+/* $Id: dnsget.c,v 1.31 2007/01/08 01:14:44 mjt Exp $
    simple host/dig-like application using UDNS library
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -21,19 +21,34 @@
 
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+#ifdef WINDOWS
+#include <windows.h>
+#include <winsock2.h>
+#else
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
-#include <time.h>
 #include <sys/time.h>
+#include <unistd.h>
+#endif
+#include <time.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "udns.h"
+
+#ifndef HAVE_GETOPT
+# include "getopt.c"
+#endif
+
+#ifndef AF_INET6
+# define AF_INET6 10
+#endif
 
 static char *progname;
 static int verbose = 1;
@@ -56,6 +71,11 @@ static void die(int errnum, const char *fmt, ...) {
   else putc('\n', stderr);
   fflush(stderr);
   exit(1);
+}
+
+static const char *dns_xntop(int af, const void *src) {
+  static char buf[6*5+4*4];
+  return dns_ntop(af, src, buf, sizeof(buf));
 }
 
 struct query {
@@ -203,7 +223,7 @@ printrr(const struct dns_parse *p, struct dns_rr *rr) {
 
   case DNS_T_AAAA:
     if (rr->dnsrr_dsz != 16) goto xperr;
-    printf("%s", inet_ntop(AF_INET6, dptr, dn, DNS_MAXDN));
+    printf("%s", dns_xntop(AF_INET6, dptr));
     break;
 
   case DNS_T_MX:
@@ -241,7 +261,7 @@ printrr(const struct dns_parse *p, struct dns_rr *rr) {
   case DNS_T_WKS:
     c = dptr;
     if (dptr + 4 + 2 >= end) goto xperr;
-    printf("%s %d", inet_ntoa(*((struct in_addr*)dptr)), dptr[4]);
+    printf("%s %d", dns_xntop(AF_INET, dptr), dptr[4]);
     c = dptr + 5;
     for (n = 0; c < dend; ++c, n += 8) {
       if (*c) {
@@ -260,6 +280,25 @@ printrr(const struct dns_parse *p, struct dns_rr *rr) {
     printf("%d %d %d %s.",
            dns_get16(c+0), dns_get16(c+2), dns_get16(c+4),
            dns_dntosp(dn));
+    break;
+
+  case DNS_T_NAPTR:	/* order pref flags serv regexp repl */
+    c = dptr;
+    c += 4;	/* order, pref */
+    for (n = 0; n < 3; ++n)
+      if (c >= dend) goto xperr;
+      else c += *c + 1;
+    if (dns_getdn(pkt, &c, end, dn, DNS_MAXDN) <= 0 || c != dend) goto xperr;
+    c = dptr;
+    printf("%u %u", dns_get16(c+0), dns_get16(c+2));
+    c += 4;
+    for(n = 0; n < 3; ++n) {
+      putchar(' ');
+      if (verbose > 0) putchar('"');
+      c = printtxt(c);
+      if (verbose > 0) putchar('"');
+    } 
+    printf(" %s.", dns_dntosp(dn));
     break;
 
   case DNS_T_KEY: /* flags(2) proto(1) algo(1) pubkey */
@@ -373,21 +412,15 @@ dbgcb(int code, const struct sockaddr *sa, unsigned slen,
   }
   else
     printf(";; received %d bytes response from ", r);
-  if (sa->sa_family == AF_INET && slen >= sizeof(struct sockaddr_in)) {
-    char buf[4*4];
+  if (sa->sa_family == AF_INET && slen >= sizeof(struct sockaddr_in))
     printf("%s port %d\n",
-           inet_ntop(AF_INET, &((struct sockaddr_in*)sa)->sin_addr,
-                     buf, sizeof(buf)),
+           dns_xntop(AF_INET, &((struct sockaddr_in*)sa)->sin_addr),
            htons(((struct sockaddr_in*)sa)->sin_port));
-  }
-#ifdef AF_INET6
-  else if (sa->sa_family == AF_INET6 && slen >= sizeof(struct sockaddr_in6)) {
-    char buf[6*5+4*4];
+#ifdef HAVE_IPv6
+  else if (sa->sa_family == AF_INET6 && slen >= sizeof(struct sockaddr_in6))
     printf("%s port %d\n",
-           inet_ntop(AF_INET6, &((struct sockaddr_in6*)sa)->sin6_addr,
-                     buf, sizeof(buf)),
+           dns_xntop(AF_INET6, &((struct sockaddr_in6*)sa)->sin6_addr),
            htons(((struct sockaddr_in6*)sa)->sin6_port));
-  }
 #endif
   else
     printf("<<unknown socket type %d>>\n", sa->sa_family);
@@ -466,7 +499,7 @@ static void dnscb(struct dns_ctx *ctx, void *result, void *data) {
   struct dns_rr rr;
   unsigned nrr;
   unsigned char dn[DNS_MAXDN];
-  const unsigned char *pkt, *cur, *end, *qdn;
+  const unsigned char *pkt, *cur, *end;
   if (!result) {
     dnserror(q, r);
     return;
@@ -475,10 +508,9 @@ static void dnscb(struct dns_ctx *ctx, void *result, void *data) {
   dns_getdn(pkt, &cur, end, dn, sizeof(dn));
   dns_initparse(&p, NULL, pkt, cur, end);
   p.dnsp_qcls = p.dnsp_qtyp = 0;
-  qdn = dn;
   nrr = 0;
   while((r = dns_nextrr(&p, &rr)) > 0) {
-    if (!dns_dnequal(qdn, rr.dnsrr_dn)) continue;
+    if (!dns_dnequal(dn, rr.dnsrr_dn)) continue;
     if ((qcls == DNS_C_ANY || qcls == rr.dnsrr_cls) &&
         (q->qtyp == DNS_T_ANY || q->qtyp == rr.dnsrr_typ))
       ++nrr;
@@ -491,10 +523,10 @@ static void dnscb(struct dns_ctx *ctx, void *result, void *data) {
       }
       else {
         if (verbose == 1) {
-          printf("%s.", dns_dntosp(qdn));
+          printf("%s.", dns_dntosp(dn));
           printf(" CNAME %s.\n", dns_dntosp(p.dnsp_dnbuf));
         }
-        qdn = p.dnsp_dnbuf;
+        dns_dntodn(p.dnsp_dnbuf, dn, sizeof(dn));
       }
     }
   }
@@ -507,8 +539,8 @@ static void dnscb(struct dns_ctx *ctx, void *result, void *data) {
   }
   if (verbose < 2) {	/* else it is already printed by dbgfn */
     dns_rewind(&p, NULL);
-    p.dnsp_qtyp = q->qtyp;
-    p.dnsp_qcls = qcls;
+    p.dnsp_qtyp = q->qtyp == DNS_T_ANY ? 0 : q->qtyp;
+    p.dnsp_qcls = qcls == DNS_C_ANY ? 0 : qcls;
     while(dns_nextrr(&p, &rr))
       printrr(&p, &rr);
   }
@@ -534,7 +566,7 @@ int main(int argc, char **argv) {
   if (argc <= 1)
     die(0, "try `%s -h' for help", progname);
 
-  if (dns_init(0) < 0 || !(nctx = dns_new(NULL)))
+  if (dns_init(NULL, 0) < 0 || !(nctx = dns_new(NULL)))
     die(errno, "unable to initialize dns library");
   /* we keep two dns contexts: one may be needed to resolve
    * nameservers if given as names, using default options.
@@ -578,7 +610,7 @@ int main(int argc, char **argv) {
 " -h - print this help and exit\n"
 " -v - be more verbose\n"
 " -q - be less verbose\n"
-" -t type - set query type (A, AA, PTR etc)\n"
+" -t type - set query type (A, AAA, PTR etc)\n"
 " -c class - set query class (IN (default), CH, HS, *)\n"
 " -a - equivalent to -t ANY -v\n"
 " -n ns - use given nameserver(s) instead of default\n"
@@ -613,7 +645,7 @@ int main(int argc, char **argv) {
     sin.sin_port = htons(dns_set_opt(NULL, DNS_OPT_PORT, -1));
     dns_add_serv(NULL, NULL);
     for(i = 0; i < nns; ++i) {
-      if (!inet_aton(ns[i], &sin.sin_addr)) {
+      if (dns_pton(AF_INET, ns[i], &sin.sin_addr) <= 0) {
         struct dns_rr_a4 *rr;
         if (!opened) {
           if (dns_open(nctx) < 0)
@@ -634,7 +666,8 @@ int main(int argc, char **argv) {
       else
         r = dns_add_serv_s(NULL, (struct sockaddr *)&sin);
       if (r < 0)
-        die(errno, "unable to add nameserver %s", inet_ntoa(sin.sin_addr));
+        die(errno, "unable to add nameserver %s",
+             dns_xntop(AF_INET, &sin.sin_addr));
     }
   }
   dns_free(nctx);
@@ -655,16 +688,18 @@ int main(int argc, char **argv) {
     unsigned char dn[DNS_MAXDN];
     enum dns_type l_qtyp = 0;
     int abs;
-    if (inet_pton(AF_INET, name, &a.addr) > 0) {
+    if (dns_pton(AF_INET, name, &a.addr) > 0) {
       dns_a4todn(&a.addr, 0, dn, sizeof(dn));
       l_qtyp = DNS_T_PTR;
       abs = 1;
     }
-    else if (inet_pton(AF_INET6, name, &a.addr6) > 0) {
+#ifdef HAVE_IPv6
+    else if (dns_pton(AF_INET6, name, &a.addr6) > 0) {
       dns_a6todn(&a.addr6, 0, dn, sizeof(dn));
       l_qtyp = DNS_T_PTR;
       abs = 1;
     }
+#endif
     else if (!dns_ptodn(name, strlen(name), dn, sizeof(dn), &abs))
       die(0, "invalid name `%s'\n", name);
     else

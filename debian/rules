@@ -30,22 +30,25 @@ endif
 
 SOVER = 0
 
-configure:	# nothing
+config.h:	./configure Makefile.in
 	dh_testdir
+	./configure --enable-ipv6
 
 build:	build-stamp
-build-stamp:
+build-stamp:	config.h
 	dh_testdir
-	$(MAKE) CFLAGS="$(CFLAGS)" CDEFS="$(CDEFS)" SOVER=$(SOVER) \
-		staticlib sharedlib rblcheck.shared dnsget.shared
-	mv -f rblcheck.shared rblcheck
-	mv -f dnsget.shared dnsget
+	$(MAKE) CFLAGS="$(CFLAGS)" SOVER=$(SOVER) \
+		staticlib sharedlib rblcheck_s dnsget_s
+	mv -f dnsget_s dnsget
+	mv -f rblcheck_s rblcheck
+	mv -f libudns_s.so libudns.so
+	echo 
 	touch $@
 
 clean:
 	dh_testdir
 	rm -f build-stamp
-	$(MAKE) distclean
+	if [ -f Makefile ]; then $(MAKE) distclean; fi
 	dh_clean
 
 install: build
@@ -62,11 +65,10 @@ install: build
 	dh_install -plibudns-dev libudns.a libudns.so usr/lib
 	dh_install -plibudns-dev udns.h usr/include
 	dh_installman -plibudns-dev udns.3
-	dh_installdocs -plibudns-dev TODO
+	dh_installdocs -plibudns-dev TODO NOTES
 	dh_installexamples -plibudns-dev ex-rdns.c
 
 # udns-utils
-	dh_installdirs -pudns-utils usr/bin
 	dh_install -pudns-utils dnsget rblcheck usr/bin
 	dh_installman -pudns-utils dnsget.1 rblcheck.1
 
@@ -80,12 +82,12 @@ binary-arch: build install
 	dh_strip
 	dh_compress
 	dh_fixperms
-	dh_makeshlibs
+	dh_makeshlibs -V
 	dh_installdeb
-	dh_shlibdeps -L libudns$(SOVER) -l debian/libudns$(SOVER)/usr/lib
+	dh_shlibdeps -L libudns$(SOVER) -l .
 	dh_gencontrol
 	dh_md5sums
 	dh_builddeb
 
 binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary install configure
+.PHONY: build clean binary-indep binary-arch binary install

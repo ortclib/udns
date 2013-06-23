@@ -1,4 +1,4 @@
-/* $Id: udns.h,v 1.37 2005/09/12 12:09:10 mjt Exp $
+/* $Id: udns.h,v 1.51 2007/01/15 21:19:08 mjt Exp $
    header file for the UDNS library.
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -23,9 +23,9 @@
 
 #ifndef UDNS_VERSION	/* include guard */
 
-#define UDNS_VERSION "0.0.8"
+#define UDNS_VERSION "0.0.9"
 
-#ifdef WIN32
+#ifdef WINDOWS
 # ifdef UDNS_DYNAMIC_LIBRARY
 #  ifdef DNS_LIBRARY_BUILD
 #   define UDNS_API __declspec(dllexport)
@@ -69,12 +69,12 @@ typedef unsigned char dnsc_t;
 typedef const unsigned char dnscc_t;
 
 #define DNS_MAXDN	255	/* max DN length */
+#define DNS_DNPAD	1	/* padding for DN buffers */
 #define DNS_MAXLABEL	63	/* max DN label length */
 #define DNS_MAXNAME	1024	/* max asciiz domain name length */
 #define DNS_HSIZE	12	/* DNS packet header size */
 #define DNS_PORT	53	/* default domain port */
 #define DNS_MAXSERV	6	/* max servers to consult */
-#define DNS_MAXSRCH	5	/* max searchlist entries */
 #define DNS_MAXPACKET	512	/* max traditional-DNS UDP packet size */
 #define DNS_EDNS0PACKET	4096	/* EDNS0 packet size to use */
 
@@ -206,6 +206,10 @@ dns_dntosp(dnscc_t *dn);
 UDNS_API unsigned
 dns_dntop_size(dnscc_t *dn);
 
+/* either wrappers or reimplementations for inet_ntop() and inet_pton() */
+UDNS_API const char *dns_ntop(int af, const void *src, char *dst, int size);
+UDNS_API int dns_pton(int af, const char *src, void *dst);
+
 /**************************************************************************/
 /**************** DNS raw packet layout ***********************************/
 
@@ -237,13 +241,16 @@ static __inline unsigned dns_get32(dnscc_t *s) {
         | ((unsigned)s[2]<<8) | s[3];
 }
 static __inline dnsc_t *dns_put16(dnsc_t *d, unsigned n) {
-  *d++ = (n >> 8) & 255; *d++ = n & 255; return d;
+  *d++ = (dnsc_t)((n >> 8) & 255); *d++ = (dnsc_t)(n & 255); return d;
 }
 static __inline dnsc_t *dns_put32(dnsc_t *d, unsigned n) {
-  *d++ = (n >> 24) & 255; *d++ = (n >> 16) & 255;
-  *d++ = (n >>  8) & 255; *d++ = n & 255;
+  *d++ = (dnsc_t)((n >> 24) & 255); *d++ = (dnsc_t)((n >> 16) & 255);
+  *d++ = (dnsc_t)((n >>  8) & 255); *d++ = (dnsc_t)(n & 255);
   return d;
 }
+
+/* return pseudo-random 16bits number */
+UDNS_API unsigned dns_random16(void);
 
 /* DNS Header layout */
 enum {
@@ -350,16 +357,19 @@ dns_rewind(struct dns_parse *p, dnscc_t *qdn);
 /* default resolver context */
 UDNS_DATA_API extern struct dns_ctx dns_defctx;
 
-/* initialize default resolver context and open it if do_open is true.
- * <0 on failure. */
+/* reset resolver context to default state, close it if open, drop queries */
+UDNS_API void
+dns_reset(struct dns_ctx *ctx);
+
+/* reset resolver context and read in system configuration */
 UDNS_API int
-dns_init(int do_open);
+dns_init(struct dns_ctx *ctx, int do_open);
 
 /* return new resolver context with the same settings as copy */
 UDNS_API struct dns_ctx *
 dns_new(const struct dns_ctx *copy);
 
-/* free resolver context; all queries are dropped */
+/* free resolver context returned by dns_new(); all queries are dropped */
 UDNS_API void
 dns_free(struct dns_ctx *ctx);
 
@@ -367,7 +377,7 @@ dns_free(struct dns_ctx *ctx);
 UDNS_API int
 dns_add_serv(struct dns_ctx *ctx, const char *serv);
 
-/* add nameserver using struct sockaddr array (with ports etc) */
+/* add nameserver using struct sockaddr structure (with ports) */
 UDNS_API int
 dns_add_serv_s(struct dns_ctx *ctx, const struct sockaddr *sa);
 
@@ -396,7 +406,6 @@ enum dns_flags {
   DNS_NOSRCH	= 0x00010000,	/* do not perform search */
   DNS_NORD	= 0x00020000,	/* request no recursion */
   DNS_AAONLY	= 0x00040000,	/* set AA flag in queries */
-  DNS_PASSALL	= 0x00080000,	/* pass all replies to application */
 };
 
 /* set the debug function pointer */
@@ -479,8 +488,7 @@ dns_submit_p(struct dns_ctx *ctx,
 UDNS_API int
 dns_cancel(struct dns_ctx *ctx, struct dns_query *q);
 
-/* immediately resolve a generic query, return the answer
- * and place completion status into *statusp */
+/* resolve a generic query, return the answer */
 UDNS_API void *
 dns_resolve_dn(struct dns_ctx *ctx,
                dnscc_t *qdn, int qcls, int qtyp, int flags,
@@ -636,6 +644,32 @@ dns_resolve_srv(struct dns_ctx *ctx,
                 const char *name, const char *srv, const char *proto,
                 int flags);
 
+/* NAPTR (RFC3403) RR type */
+struct dns_naptr {	/* single NAPTR RR */
+  int order;		/* NAPTR order */
+  int preference;	/* NAPTR preference */
+  char *flags;		/* NAPTR flags */
+  char *service;	/* NAPTR service */
+  char *regexp;		/* NAPTR regexp */
+  char *replacement;	/* NAPTR replacement */
+};
+
+struct dns_rr_naptr {		/* the NAPTR RRset */
+  dns_rr_common(dnsnaptr);
+  struct dns_naptr *dnsnaptr_naptr;	/* array of NAPTRes */
+};
+UDNS_API dns_parse_fn dns_parse_naptr;	/* NAPTR RR parsing routine */
+typedef void				/* NAPTR RR callback */
+dns_query_naptr_fn(struct dns_ctx *ctx,
+                   struct dns_rr_naptr *result, void *data);
+/* submit NAPTR IN query */
+UDNS_API struct dns_query *
+dns_submit_naptr(struct dns_ctx *ctx, const char *name, int flags,
+                 dns_query_naptr_fn *cbck, void *data);
+/* resolve NAPTR IN query */
+UDNS_API struct dns_rr_naptr *
+dns_resolve_naptr(struct dns_ctx *ctx, const char *name, int flags);
+
 
 UDNS_API struct dns_query *
 dns_submit_a4dnsbl(struct dns_ctx *ctx,
@@ -693,11 +727,11 @@ UDNS_DATA_API extern const struct dns_nameval dns_typetab[];
 UDNS_DATA_API extern const struct dns_nameval dns_rcodetab[];
 UDNS_API int
 dns_findname(const struct dns_nameval *nv, const char *name);
-#define dns_findclassname(class) dns_findname(dns_classtab, (class))
+#define dns_findclassname(cls) dns_findname(dns_classtab, (cls))
 #define dns_findtypename(type) dns_findname(dns_typetab, (type))
 #define dns_findrcodename(rcode) dns_findname(dns_rcodetab, (rcode))
 
-UDNS_API const char *dns_classname(enum dns_class class);
+UDNS_API const char *dns_classname(enum dns_class cls);
 UDNS_API const char *dns_typename(enum dns_type type);
 UDNS_API const char *dns_rcodename(enum dns_rcode rcode);
 const char *_dns_format_code(char *buf, const char *prefix, int code);

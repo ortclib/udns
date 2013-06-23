@@ -1,6 +1,15 @@
-$Id: TODO,v 1.10 2005/04/19 21:48:09 mjt Exp $
+$Id: TODO,v 1.13 2007/01/15 21:19:08 mjt Exp $
 
 The following is mostly an internal, not user-visible stuff.
+
+* rearrange an API to make dns_query object owned by application,
+  so that it'll look like this:
+   struct dns_query *q;
+   q = udns_query_alloc(ctx);
+   udns_query_set(q, options, domain_name, flags, ...);
+   udns_query_submit(ctx, q);
+ or
+   udns_query_resolve(ctx, q);
 
 * allow NULL callbacks?  Or provide separate resolver
   context list of queries which are done but wich did not
@@ -19,12 +28,23 @@ The following is mostly an internal, not user-visible stuff.
 * dns_set_opts() may process flags too (such as aaonly etc)
 
 * a way to disable $NSCACHEIP et al processing?
+  (with now separate dns_init() and dns_reset(), it has finer
+  control, but still no way to init from system files but ignore
+  environment variables and the like)
 
 * initialize/open the context automatically, and be more
   liberal about initialization in general?
 
-* dns_init(do_open) - make the parameter opposite, aka
-  dns_init(skip_open) ?
+* dns_init(ctx, do_open) - make the parameter opposite, aka
+  dns_init(ctx, skip_open) ?
+
+* allow TCP queue?
+
+* And oh, qID should really be random.  Or... not.
+  See notes in udns_resolver.c, dns_newid().
+
+* more accurate error reporting.  Currently, udns always returns TEMPFAIL,
+  but don't specify why it happened (ENOMEM, timeout, etc).
 
 * check the error value returned by recvfrom() and
   sendto() and determine which errors to ignore.
@@ -46,3 +66,4 @@ The following is mostly an internal, not user-visible stuff.
   because of the lack of platform.
   Ok ok, the Windows port is in progress.  Christian Prahauser
   from cosy.sbg.ac.at is helping with that.
+  Other folks done some more work in this area.

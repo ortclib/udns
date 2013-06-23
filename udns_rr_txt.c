@@ -1,4 +1,4 @@
-/* $Id: udns_rr_txt.c,v 1.14 2005/04/20 06:44:34 mjt Exp $
+/* $Id: udns_rr_txt.c,v 1.15 2006/11/28 22:45:20 mjt Exp $
    parse/query TXT records
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -78,7 +78,7 @@ dns_parse_txt(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
     ret->dnstxt_txt[r].len = sp - ret->dnstxt_txt[r].txt;
     *sp++ = '\0';
   }
-  dns_stdrr_finish((struct dns_rr_null *)ret, sp, &p);
+  dns_stdrr_finish((struct dns_rr_null *)ret, (char*)sp, &p);
   *result = ret;
   return 0;
 }

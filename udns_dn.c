@@ -1,4 +1,4 @@
-/* $Id: udns_dn.c,v 1.6 2005/09/12 10:55:21 mjt Exp $
+/* $Id: udns_dn.c,v 1.7 2006/11/28 22:45:20 mjt Exp $
    domain names manipulation routines
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -71,7 +71,7 @@ dns_ptodn(const char *name, unsigned namelen,
   dnsc_t *const de	/* end of dn: last byte that can be filled up */
       = dn + (dnsiz >= DNS_MAXDN ? DNS_MAXDN : dnsiz) - 1;
   dnscc_t *np = (dnscc_t *)name;
-  dnscc_t *ne = np + (namelen ? namelen : strlen(np));
+  dnscc_t *ne = np + (namelen ? namelen : strlen((char*)np));
   dnsc_t *llab;		/* start of last label (llab[-1] will be length) */
   unsigned c;		/* next input character, or length of last label */
 

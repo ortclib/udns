@@ -1,4 +1,4 @@
-/* $Id: rblcheck.c,v 1.9 2005/04/24 22:49:10 mjt Exp $
+/* $Id: rblcheck.c,v 1.14 2007/01/10 02:52:51 mjt Exp $
    dnsbl (rbl) checker application
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -21,21 +21,41 @@
 
  */
 
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#ifdef WINDOWS
+# include <winsock2.h>
+#else
+# include <unistd.h>
+# include <sys/types.h>
+# include <sys/socket.h>
+# include <netinet/in.h>
+#endif
 #include <time.h>
-#include <sys/time.h>
 #include <errno.h>
+#include <stdarg.h>
 #include "udns.h"
 
-static const char *version = "udns-rblcheck 0.1";
+#ifndef HAVE_GETOPT
+# include "getopt.c"
+#endif
+
+static const char *version = "udns-rblcheck 0.2";
 static char *progname;
+
+static void error(int die, const char *fmt, ...) {
+  va_list ap;
+  fprintf(stderr, "%s: ", progname);
+  va_start(ap, fmt); vfprintf(stderr, fmt, ap); va_end(ap);
+  putc('\n', stderr);
+  fflush(stderr);
+  if (die)
+    exit(1);
+}
 
 struct rblookup {
   struct ipcheck *parent;
@@ -72,10 +92,8 @@ static int failures;
 
 static void *ecalloc(int size, int cnt) {
   void *t = calloc(size, cnt);
-  if (!t) {
-    fprintf(stderr, "%s: out of memory\n", progname);
-    exit(1);
-  }
+  if (!t)
+    error(1, "out of memory");
   return t;
 }
 
@@ -111,22 +129,25 @@ static int addzonefile(const char *fname) {
 }
 
 static void dnserror(struct rblookup *ipl, const char *what) {
-  fprintf(stderr, "%s: unable to %s for %s (%s): %s\n",
-          progname, what, inet_ntoa(ipl->key), ipl->zone,
-          dns_strerror(dns_status(0)));
+  char buf[4*4];
+  error(0, "unable to %s for %s (%s): %s",
+          what, dns_ntop(AF_INET, &ipl->key, buf, sizeof(buf)),
+          ipl->zone, dns_strerror(dns_status(0)));
   ++failures;
 }
 
 static void display_result(struct ipcheck *ipc) {
   int j;
   struct rblookup *l, *le;
+  char buf[4*4];
   if (!ipc->naddr) return;
   for (l = ipc->lookup, le = l + nzones * ipc->naddr; l < le; ++l) {
     if (!l->addr) continue;
     if (verbose < 2 && l->addr == notlisted) continue;
     if (verbose >= 0) {
-      if (ipc->name) printf("%s[%s]", ipc->name, inet_ntoa(l->key));
-      else printf("%s", inet_ntoa(l->key));
+      dns_ntop(AF_INET, &l->key, buf, sizeof(buf));
+      if (ipc->name) printf("%s[%s]", ipc->name, buf);
+      else printf("%s", buf);
     }
     if (l->addr == notlisted) {
       printf(" is NOT listed by %s\n", l->zone);
@@ -138,7 +159,8 @@ static void display_result(struct ipcheck *ipc) {
       printf(" %s ", l->zone);
     if (verbose >= 1 || !do_txt)
       for (j = 0; j < l->addr->dnsa4_nrr; ++j)
-        printf("%s%s", j ? " " : "", inet_ntoa(l->addr->dnsa4_addr[j]));
+        printf("%s%s", j ? " " : "",
+               dns_ntop(AF_INET, &l->addr->dnsa4_addr[j], buf, sizeof(buf)));
     if (!do_txt) ;
     else if (l->txt) {
       for(j = 0; j < l->txt->dnstxt_nrr; ++j) {
@@ -217,20 +239,24 @@ static void namecb(struct dns_ctx *ctx, struct dns_rr_a4 *rr, void *data) {
     submit_a_queries(ipc, rr->dnsa4_nrr, rr->dnsa4_addr);
     free(rr);
   }
-  else
-    fprintf(stderr, "%s: unable to lookup %s: %s\n",
-            progname, ipc->name, dns_strerror(dns_status(ctx)));
+  else {
+    error(0, "unable to lookup `%s': %s",
+          ipc->name, dns_strerror(dns_status(ctx)));
+    ++failures;
+  }
 }
 
 static int submit(struct ipcheck *ipc) {
   struct in_addr addr;
-  if (inet_aton(ipc->name, &addr)) {
+  if (dns_pton(AF_INET, ipc->name, &addr) > 0) {
     submit_a_queries(ipc, 1, &addr);
     ipc->name = NULL;
   }
-  else if (!dns_submit_a4(0, ipc->name, 0, namecb, ipc))
-    fprintf(stderr, "%s: unable to submit name query for %s: %s\n",
-            progname, ipc->name, dns_strerror(dns_status(0)));
+  else if (!dns_submit_a4(0, ipc->name, 0, namecb, ipc)) {
+    error(0, "unable to submit name query for %s: %s\n",
+          ipc->name, dns_strerror(dns_status(0)));
+    ++failures;
+  }
   return 0;
 }
 
@@ -268,8 +294,7 @@ int main(int argc, char **argv) {
   case 'S':
     ++zgiven;
     if (addzonefile(optarg)) break;
-    fprintf(stderr, "%s: unable to read %s\n", progname, optarg);
-    return 1;
+    error(1, "unable to read zonefile `%s'", optarg);
   case 'c': ++zgiven; nzones = 0; break;
   case 'q': --verbose; break;
   case 'v': ++verbose; break;
@@ -277,7 +302,8 @@ int main(int argc, char **argv) {
   case 'n': nameserver = optarg; break;
   case 'm': ++stopfirst; break;
   case 'h':
-    printf("%s: %s.\n", progname, version);
+    printf("%s: %s (udns library version %s).\n",
+           progname, version, dns_version());
     printf("Usage is: %s [options] address..\n", progname);
     printf(
 "Where options are:\n"
@@ -295,8 +321,7 @@ int main(int argc, char **argv) {
     );
     return 0;
   default:
-    fprintf(stderr, "%s: use `%s -h' for help\n", progname, progname);
-    return 1;
+    error(1, "use `%s -h' for help", progname);
   }
 
   if (!zgiven) {
@@ -304,14 +329,11 @@ int main(int argc, char **argv) {
     if (s) {
       char *k;
       s = strdup(s);
-      k = strtok(s, " \t");
-      while(k) {
+      for(k = strtok(s, " \t"); k; k = strtok(NULL, " \t"))
         addzone(k);
-        k = strtok(NULL, " \t");
-      }
       free(s);
     }
-    else {
+    else {	/* probably worthless on windows? */
       char *path;
       char *home = getenv("HOME");
       if (!home) home = ".";
@@ -322,11 +344,8 @@ int main(int argc, char **argv) {
       free(path);
     }
   }
-  if (!nzones) {
-    fprintf(stderr, "%s: no service (zone) list specified (-s or -S option)\n",
-            progname);
-    return 1;
-  }
+  if (!nzones)
+    error(1, "no service (zone) list specified (-s or -S option)");
 
   argv += optind;
   argc -= optind;
@@ -334,25 +353,19 @@ int main(int argc, char **argv) {
   if (!argc)
     return 0;
 
-  if (dns_init(0) < 0) {
-    fprintf(stderr, "%s: unable to initialize DNS library: %s\n",
-            progname, strerror(errno));
-    return 1;
-  }
+  if (dns_init(NULL, 0) < 0)
+    error(1, "unable to initialize DNS library: %s", strerror(errno));
   if (nameserver) {
     dns_add_serv(NULL, NULL);
     if (dns_add_serv(NULL, nameserver) < 0)
-      fprintf(stderr, "%s: unable to use nameserver %s: %s\n",
-              progname, nameserver, strerror(errno));
+      error(1, "wrong IP address for a nameserver: `%s'", nameserver);
   }
-  if (dns_open(NULL) < 0) {
-    fprintf(stderr, "%s: unable to initialize DNS library: %s\n",
-            progname, strerror(errno));
-    return 1;
-  }
+  if (dns_open(NULL) < 0)
+    error(1, "unable to initialize DNS library: %s", strerror(errno));
 
   for (c = 0; c < argc; ++c) {
     if (c && (verbose > 1 || (verbose == 1 && do_txt))) putchar('\n');
+    memset(&ipc, 0, sizeof(ipc));
     ipc.name = argv[c];
     submit(&ipc);
     waitdns(&ipc);

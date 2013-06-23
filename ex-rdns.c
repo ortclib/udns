@@ -1,4 +1,4 @@
-/* $Id: ex-rdns.c,v 1.6 2005/05/07 12:21:42 mjt Exp $
+/* $Id: ex-rdns.c,v 1.8 2007/01/07 22:46:47 mjt Exp $
    parallel rDNS resolver example - read IP addresses from stdin,
    write domain names to stdout
  
@@ -25,7 +25,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
 #include <sys/poll.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -65,7 +64,10 @@ int main(int argc, char **argv) {
   char *eol;
   int eof;
 
-  if (dns_init(1) < 0) return 1;
+  if (dns_init(NULL, 1) < 0) {
+    fprintf(stderr, "unable to initialize dns library\n");
+    return 1;
+  }
   while((c = getopt(argc, argv, "m:r")) != EOF) switch(c) {
   case 'm': maxq = atoi(optarg); break;
   case 'r':
@@ -91,7 +93,7 @@ int main(int argc, char **argv) {
       eol = strchr(linebuf, '\n');
       if (eol) *eol = '\0';
       if (!linebuf[0]) continue;
-      if (!inet_aton(linebuf, &pa.a))
+      if (dns_pton(AF_INET, linebuf, &pa.a) <= 0)
         fprintf(stderr, "%s: invalid address\n", linebuf);
       else if (dns_submit_a4ptr(0, &pa.a, dnscb, pa.p) == 0)
         fprintf(stderr, "%s: unable to submit query: %s\n",

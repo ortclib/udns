@@ -2,10 +2,10 @@ Source: udns
 Priority: optional
 Maintainer: Michael Tokarev <mjt@corpit.ru>
 Build-Depends: debhelper (>= 4.0.0)
-Standards-Version: 3.6.1
+Standards-Version: 3.7.2
 
 Package: libudns0
-Section: lib
+Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}
 Description: async-capable DNS stub resolver library
@@ -13,7 +13,7 @@ Description: async-capable DNS stub resolver library
  to run programs using it
 
 Package: libudns-dev
-Section: libdev
+Section: libdevel
 Architecture: any
 Depends: libudns0 (= ${Source-Version})
 Description: async-capable DNS stub resolver library, development files

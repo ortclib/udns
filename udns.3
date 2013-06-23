@@ -1,4 +1,4 @@
-.\" $Id: udns.3,v 1.25 2005/09/12 12:05:12 mjt Exp $
+.\" $Id: udns.3,v 1.32 2007/01/15 21:19:08 mjt Exp $
 .\" udns library manpage
 .\"
 .\" Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -19,7 +19,7 @@
 .\" write to the Free Software Foundation, Inc., 59 Temple Place,
 .\" Suite 330, Boston, MA  02111-1307  USA
 
-.TH udns 3 "Apr 2005" "Library Functions"
+.TH udns 3 "Jan 2007" "Library Functions"
 
 .SH NAME
 udns \- stub DNS resolver library
@@ -130,7 +130,7 @@ address record type and so on.  See udns.h header file for complete list
 of all such constants.
 
 .PP
-The following constants are defined in dns.h header file:
+The following constants are defined in udns.h header file:
 .IP "\fBDNS_MAXDN\fR (255 bytes)"
 Maximum length of the domain name in internal (on-wire) DN format.
 .IP "\fBDNS_MAXLABEL\fR (63 bytes)"
@@ -143,8 +143,6 @@ Size of header in DNS packet.
 Default port to use when contacting a DNS server.
 .IP "\fBDNS_MAXSERV\fR (6 servers)"
 Maximum number of DNS servers to use.
-.IP "\fBDNS_MAXSRCH\fR (5 search list entries)"
-Maximum number of domain search list
 .IP "\fBDNS_MAXPACKET\fR (512 bytes)"
 Maximum length of DNS UDP packet as specified by original DNS protocol
 .IP "\fBDNS_EDNS0PACKET\fR (4096 bytes)"
@@ -175,6 +173,15 @@ a routine is NULL, \fBdns_defctx\fR is used.  Several resolver contexts
 may be active at the same time, for example, when an application is
 multi-threaded and each thread uses resolver.
 .PP
+In order to use the library, an application should initialize and open
+one or more resolver context objects.  These are two separate actions,
+performed by \fBdns_init\fR() (or \fBdns_reset\fR()), and \fBdns_open\fR().
+Between the two calls, an application is free to pefrorm additional
+initialisation, such as setting custom nameservers, options or domain search
+lists.  Optionally, in case no additional custom initialisation is required,
+\fBdns_init\fR() may open the context if \fIdo_open\fR argument (see below)
+is non-zero.
+.PP
 When initializing resolver context, the library uses information from
 system file /etc/resolv.conf (see \fBresolv.conf\fR(5)), consults
 environment variables \fB$LOCALDOMAIN\fR, \fB$DNSCACHEIP\fR,
@@ -185,32 +192,49 @@ options.
 The following routines to initialize resolver context are available:
 .PP
 .nf
-int \fBdns_init\fR(int \fIdo_open\fR)
+void \fBdns_reset\fR(\fIctx\fR)
+int \fBdns_init\fR(\fIctx\fR, int \fIdo_open\fR)
+.fi
+.RS
+\fBdns_reset\fR() resets a given resolver context to default values,
+preparing it to be opened by \fBdns_open\fR().
+It is ok to call this routine against opened and active context - all active
+queries will be dropped, sockets will be closed and so on.  This routine
+does not initialize any parameters from system configuration files, use
+\fBdns_init\fR() for this.  There's no error return - operation always
+succeeds.  \fBdns_init\fR() does everything \fBdns_reset\fR() does,
+plus initializes various parameters of the context according to system
+configuration and process environment variables.  If \fIdo_open\fR is
+non-zero, \fBdns_init\fR() calls \fIdns_open\fR(), so that the whole
+library initialisation is performed in a single step.
+.RE
+.PP
+.nf
 struct dns_ctx *\fBdns_new\fR(struct dns_ctx *\fIcopy\fR)
 void \fBdns_free\fR(\fIctx\fR)
 .fi
 .RS
-\fBdns_init\fR() initializes default resolver context, \fBdns_defctx\fR,
-and optionally opens it (if \fIdo_open\fR is true) using \fBdns_open\fR(),
-returning negative value on error.
-\fBdns_new\fR() makes a copy of a given resolver context \fIcopy\fR, or
-default context if \fIcopy\fR is NULL, and returns pointer to it.
+\fBdns_new\fR() allocates new resolver context and copies all parameters
+for a given resolver context \fIcopy\fR, or default context if \fIcopy\fR
+is NULL, and returns pointer to the newly allocated context.  The context
+being copied should be initialized.
 \fBdns_new\fR() may fail if there's no memory available to make a copy
 of \fIcopy\fR, in which case the routine will return NULL pointer.
 \fBdns_free\fR() is used to close assotiated socket and free resolver
 context resources and cancelling (abandoming) all active queries
-assotiated with it.  It's ok to free \fBdns_defctx\fR as well as
-dynamically allocated contexts returned by \fBdns_new\fR().
+assotiated with it.  It's an error to free \fBdns_defctx\fR, only
+dynamically allocated contexts returned by \fBdns_new\fR() are allowed
+to be freed by \fBdns_free\fR().
 .RE
 .PP
 .nf
-int \fBdns_add_serv\fR(\fIctx\fR, const char *\fIserv\fR)
+int \fBdns_add_serv\fR(\fIctx\fR, const char *\fIservaddr\fR)
 int \fBdns_add_serv_s\fR(\fIctx\fR, const struct sockaddr *\fIsa\fR)
 int \fBdns_add_srch\fR(\fIctx\fR, const char *\fIsrch\fR)
 .fi
 .RS
 Add an element to list of nameservers (\fBdns_add_serv\fR(), as
-asciiz-string \fIserv\fR with an IP address of the nameserver,
+asciiz-string \fIservaddr\fR with an IP address of the nameserver,
 and \fBdns_add_serv_s\fR(), as initialized socket address \fIsa\fR),
 or search list (\fBdns_add_srch\fR(), as a pointer to domain name)
 for the given context \fIctx\fR.  If the last argument is a NULL
@@ -256,9 +280,12 @@ void \fBdns_close\fR(\fIctx\fR)
 .RS
 \fBdns_open\fR() opens the UDP socket used for queries if not already
 open, and return assotiated filedescriptor (or negative value in case
-of error).
+of error).  Before any query can be submitted, the context should be
+opened using this routine.  And before opening, the context should be
+initialized.
 \fBdns_sock\fR() return the UDP socket if open, or -1 if not.
-\fBdns_close\fR() closes the UDP socket if it was open.
+\fBdns_close\fR() closes the UDP socket if it was open, and drops all active
+queries if any.
 .RE
 
 .PP
@@ -374,15 +401,16 @@ which is passed to the callback routine.
 
 .PP
 Queries are submitted to the library in a form of \fBstruct\ dns_query\fR.
-To perform asyncronous query, an application allocates memory for the
-\fIquery structure\fR and passes it to the library using \fBdns_submit\fR()
-routines, together with all the query parameters.  When the query completes,
-library will call application-supplied callback routine, giving it the
-resolver context (wich holds query completion status), dynamically allocated
-result (which will be either raw DNS packet or, if applicatin requested parsing
-the result by specifying non-NULL parse routine, ready-to-use type-specific
-structure), and a data pointer provided by an application when it submitted the
-query.  It is the application who's responsible for freeing the result memory.
+To perform asyncronous query, an application calls one of the
+\fBdns_submit_\fIXXX\fR() rounines, and provides necessary information
+for a callback, together with all the query parameters.
+When the query completes, library will call application-supplied callback
+routine, giving it the resolver context (wich holds query completion status),
+dynamically allocated result (which will be either raw DNS packet or, if
+applicatin requested parsing the result by specifying non-NULL parse routine,
+ready-to-use type-specific structure), and a data pointer provided by an
+application when it submitted the query.  It is the application who's
+responsible for freeing the result memory.
 .PP
 Generic query callback routine looks like this:
 .nf
@@ -543,7 +571,7 @@ void *\fBdns_resolve\fR(\fIctx\fR, struct dns_query *\fIq\fR)
 wait for the given query \fIq\fR, as returned by one of
 \fBdns_submit_\fIXXX\fR() routines, for completion, and
 return the result.  The callback routine will not be called
-for this query.  After completion, the query identifier \fIq\fI
+for this query.  After completion, the query identifier \fIq\fR
 is not valid. Both \fBdns_resolve_dn\fR() and \fBdns_resolve_p\fR()
 are just wrappers around corresponding submit routines and this
 \fBdns_resolve\fR() routine.
@@ -810,6 +838,48 @@ assumes \fIname\fR parameter holds the complete SRV query), and
 interest (if the \fIname\fR is absolute, that is, it ends up with a dot,
 DNS_NOSRCH flag will be set automatically).
 
+.SS "NAPTR Queries"
+.PP
+.nf
+struct \fBdns_naptr\fR {        /* single NAPTR record */
+  int \fBorder\fR;              /* record order */
+  int \fBpreference\fR;         /* preference of this record */
+  char *\fBflags\fR;            /* application-specific flags */
+  char *\fBservices\fR;         /* service parameters */
+  char *\fBregexp\fR;           /* substitutional regular expression */
+  char *\fBreplacement\fR;      /* replacement string */
+};
+struct \fBdns_rr_naptr\fR {     /* NAPTR RRset */
+  char *\fBdnsnaptr_qname\fR;   /* original query name */
+  char *\fBdnsnaptr_cname\fR;   /* canonical name */
+  unsigned \fBdnsnaptr_ttl\fR;  /* Time-To-Live (TTL) value */
+  int \fBdnsnaptr_nrr\fR;       /* number of text records in the set */
+  struct dns_naptr \fBdnsnaptr_naptr\fR[]; /* array of NAPTR records */
+};
+typedef void
+  \fBdns_query_naptr_fn\fR(\fIctx\fR, struct dns_rr_naptr *\fIresult\fR, \fIdata\fR)
+dns_parse_fn \fBdns_parse_naptr\fB;
+struct dns_query *
+\fBdns_submit_naptr\fB(\fIctx\fR, const char *\fIname\fR, int \fIflags\fR,
+   dns_query_txt_fn *\fIcbck\fR, \fIdata\fR);
+struct dns_rr_naptr *
+\fBdns_resolve_naptr\fB(\fIctx\fR, const char *\fIname\fR, int \fIflags\fR);
+.fi
+.PP
+The \fBdns_rr_naptr\fR structure holds a result of an IN NAPTR (rfc3403) query.
+Callback routine for IN NAPTR queries expected to be of type
+\fBdns_query_naptr_fn\fR, expects pointer to \fBdns_rr_naptr\fR
+structure as query result instead of raw DNS packet.
+The \fBdns_parse_naptr\fR() is used to convert raw DNS reply packet into
+\fBdns_rr_naptr\fR structure (it is used
+internally and may be used directly too with generic query interface).
+Routines \fBdns_submit_naptr\fR() and \fBdns_resolve_naptr\fR() are used to
+perform IN NAPTR queries in a type-safe manner.  The \fIname\fR parameter
+is the domain name in question, and \fIflags\fR is query flags bitmask,
+with one bit, DNS_NOSRCH, of practical interest (if the \fIname\fR is
+absolute, that is, it ends up with a dot, DNS_NOSRCH flag will be set
+automatically).
+
 .SS "DNSBL Interface"
 .PP
 A DNS-based blocklists, or a DNSBLs, are in wide use nowadays, especially
@@ -1015,7 +1085,7 @@ packets.  This is low-level interface.
 
 .PP
 DNS response codes (returned by \fBdns_rcode\fR() routine) are
-defined as constants prefixed with \fBDNS_R_\fR.  See dns.h
+defined as constants prefixed with \fBDNS_R_\fR.  See udns.h
 header file for the complete list.  In particular, constants
 \fBDNS_R_NOERROR\fR (0), \fBDNS_R_SERVFAIL\fR, \fBDNS_R_NXDOMAIN\fR
 may be of interest to an application.
@@ -1050,7 +1120,7 @@ defines size of DNS header.  Data section
 in the DNS packet immediately follows the header.  In the header,
 there are query identifier (id), various flags and codes,
 and number of resource records in various data sections.
-See dns.h header file for complete list of DNS header definitions.
+See udns.h header file for complete list of DNS header definitions.
 .RE
 
 .PP
@@ -1237,6 +1307,45 @@ part of type-specific RR structures in parsing routines.
 See library source for usage examples of all the above low-level routines,
 especially source of the parsing routines.
 
+.SS "Auxilary Routines"
+
+.PP
+.nf
+int \fBdns_pton\fR(int \fIaf\fR, const char *\fIsrc\fR, void *\fIdst\fR);
+.fi
+.RS
+privides functionality similar to standard \fBinet_pton\fR() routine,
+to convert printable representation of an IP address of family \fIaf\fR
+(either \fBAF_INET\fR or \fBAF_INET6\fR) pointed to by \fIsrc\fR into
+binary form suitable for socket addresses and transmission over network,
+in buffer pointed to by \fIdst\fR.  The destination buffer should be
+of size 4 for \fBAF_INET\fR family or 16 for \fBAF_INET6\fR.
+The return value is positive on success, 0 if \fIsrc\fR is not a valid text
+representation of an address of family \fIaf\fR, or negative if the
+given address family is not supported.
+.RE
+
+.PP
+.nf
+const char *\fBdns_ntop\fR(int \fIaf\fR, const void *\fIsrc\fR,
+    char *\fIdst\fR, int \fIdstsize\fR)
+.fi
+.RS
+privides functionality similar to standard \fBinet_ntop\fR() routine,
+to convert binary representation of an IP address of family \fIaf\fR
+(either \fBAF_INET\fR or \fBAF_INET6\fR) pointed to by \fIsrc\fR
+(either 4 or 16 bytes) into printable form in buffer in buffer pointed
+to by \fIdst\fR of size \fIdstsize\fR.  The destination buffer should be
+at least of size 16 bytes for \fBAF_INET\fR family or 46 bytes for
+\fBAF_INET6\fR.  The return value is either \fIdst\fR, or NULL pointer
+if \fIdstsize\fR is too small to hold this address or if the given
+address family is not supported.
+.RE
+
 .SH AUTHOR
 .PP
 The \fBudns\fR library has been written by Michael Tokarev, mjt@corpit.ru.
+
+.SH VERSION
+.PP
+This manual page corresponds to udns version 0.0.9, released Jan-2007.
