@@ -1,4 +1,4 @@
-/* $Id: rblcheck.c,v 1.6 2005/04/06 01:06:11 mjt Exp $
+/* $Id: rblcheck.c,v 1.9 2005/04/24 22:49:10 mjt Exp $
    dnsbl (rbl) checker application
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -70,8 +70,6 @@ static int verbose = 1;
 static int listed;
 static int failures;
 
-static time_t now;
-
 static void *ecalloc(int size, int cnt) {
   void *t = calloc(size, cnt);
   if (!t) {
@@ -91,6 +89,25 @@ static void addzone(const char *zone) {
     zones = zs;
   }
   zones[nzones++] = zone;
+}
+
+static int addzonefile(const char *fname) {
+  FILE *f = fopen(fname, "r");
+  char linebuf[2048];
+  if (!f)
+    return 0;
+  while(fgets(linebuf, sizeof(linebuf), f)) {
+    char *p = linebuf, *e;
+    while(*p == ' ' || *p == '\t') ++p;
+    if (*p == '#' || *p == '\n') continue;
+    e = p;
+    while(*e && *e != ' ' && *e != '\t' && *e != '\n')
+      ++e;
+    *e = '\0';
+    addzone(p);
+  }
+  fclose(f);
+  return 1;
 }
 
 static void dnserror(struct rblookup *ipl, const char *what) {
@@ -162,7 +179,7 @@ static void a4cb(struct dns_ctx *ctx, struct dns_rr_a4 *r, void *data) {
     ipl->addr = r;
     ++listed;
     if (do_txt) {
-      if (dns_submit_a4dnsbl_txt(0, &ipl->key, ipl->zone, txtcb, ipl, now))
+      if (dns_submit_a4dnsbl_txt(0, &ipl->key, ipl->zone, txtcb, ipl))
         return;
       dnserror(ipl, "submit DNSBL TXT record");
     }
@@ -186,7 +203,7 @@ submit_a_queries(struct ipcheck *ipc,
       rl->key = addr[a];
       rl->zone = zones[z];
       rl->parent = ipc;
-      if (!dns_submit_a4dnsbl(0, &rl->key, rl->zone, a4cb, rl, now))
+      if (!dns_submit_a4dnsbl(0, &rl->key, rl->zone, a4cb, rl))
         dnserror(rl, "submit DNSBL A query");
       ++rl;
     }
@@ -211,7 +228,7 @@ static int submit(struct ipcheck *ipc) {
     submit_a_queries(ipc, 1, &addr);
     ipc->name = NULL;
   }
-  else if (!dns_submit_a4(0, ipc->name, 0, namecb, ipc, now))
+  else if (!dns_submit_a4(0, ipc->name, 0, namecb, ipc))
     fprintf(stderr, "%s: unable to submit name query for %s: %s\n",
             progname, ipc->name, dns_strerror(dns_status(0)));
   return 0;
@@ -222,6 +239,7 @@ static void waitdns(struct ipcheck *ipc) {
   fd_set fds;
   int c;
   int fd = dns_sock(NULL);
+  time_t now = 0;
   FD_ZERO(&fds);
   while((c = dns_timeouts(NULL, -1, now)) > 0) {
     FD_SET(fd, &fds);
@@ -240,13 +258,19 @@ int main(int argc, char **argv) {
   int c;
   struct ipcheck ipc;
   char *nameserver = NULL;
+  int zgiven = 0;
 
   if (!(progname = strrchr(argv[0], '/'))) progname = argv[0];
   else argv[0] = ++progname;
 
-  while((c = getopt(argc, argv, "hqtvms:cn:")) != EOF) switch(c) {
-  case 's': addzone(optarg); break;
-  case 'c': nzones = 0; break;
+  while((c = getopt(argc, argv, "hqtvms:S:cn:")) != EOF) switch(c) {
+  case 's': ++zgiven; addzone(optarg); break;
+  case 'S':
+    ++zgiven;
+    if (addzonefile(optarg)) break;
+    fprintf(stderr, "%s: unable to read %s\n", progname, optarg);
+    return 1;
+  case 'c': ++zgiven; nzones = 0; break;
   case 'q': --verbose; break;
   case 'v': ++verbose; break;
   case 't': do_txt = 1; break;
@@ -259,11 +283,15 @@ int main(int argc, char **argv) {
 "Where options are:\n"
 " -h - print this help and exit\n"
 " -s service - add the service (DNSBL zone) to the serice list\n"
+" -S service-file - add the DNSBL zone(s) read from the given file\n"
 " -c - clear service list\n"
 " -v - increase verbosity level (more -vs => more verbose)\n"
 " -q - decrease verbosity level (opposite of -v)\n"
 " -t - obtain and print TXT records if any\n"
 " -m - stop checking after first address match in any list\n"
+" -n ipaddr - use the given nameserver instead of the default\n"
+"(if no -s or -S option is given, use $RBLCHECK_ZONES, ~/.rblcheckrc\n"
+"or /etc/rblcheckrc in that order)\n"
     );
     return 0;
   default:
@@ -271,22 +299,58 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (!nzones) {
-    fprintf(stderr, "%s: no service (zone) list specified (-s option)\n",
-            progname);
-    return 1;
+  if (!zgiven) {
+    char *s = getenv("RBLCHECK_ZONES");
+    if (s) {
+      char *k;
+      s = strdup(s);
+      k = strtok(s, " \t");
+      while(k) {
+        addzone(k);
+        k = strtok(NULL, " \t");
+      }
+      free(s);
+    }
+    else {
+      char *path;
+      char *home = getenv("HOME");
+      if (!home) home = ".";
+      path = malloc(strlen(home) + 1 + sizeof(".rblcheckrc"));
+      sprintf(path, "%s/.rblcheckrc", home);
+      if (!addzonefile(path))
+        addzonefile("/etc/rblcheckrc");
+      free(path);
+    }
   }
-
-  if (dns_init(1) < 0) {
-    fprintf(stderr, "%s: unable to initialize DNS library: %s\n",
-            progname, strerror(errno));
+  if (!nzones) {
+    fprintf(stderr, "%s: no service (zone) list specified (-s or -S option)\n",
+            progname);
     return 1;
   }
 
   argv += optind;
   argc -= optind;
 
-  now = time(NULL);
+  if (!argc)
+    return 0;
+
+  if (dns_init(0) < 0) {
+    fprintf(stderr, "%s: unable to initialize DNS library: %s\n",
+            progname, strerror(errno));
+    return 1;
+  }
+  if (nameserver) {
+    dns_add_serv(NULL, NULL);
+    if (dns_add_serv(NULL, nameserver) < 0)
+      fprintf(stderr, "%s: unable to use nameserver %s: %s\n",
+              progname, nameserver, strerror(errno));
+  }
+  if (dns_open(NULL) < 0) {
+    fprintf(stderr, "%s: unable to initialize DNS library: %s\n",
+            progname, strerror(errno));
+    return 1;
+  }
+
   for (c = 0; c < argc; ++c) {
     if (c && (verbose > 1 || (verbose == 1 && do_txt))) putchar('\n');
     ipc.name = argv[c];

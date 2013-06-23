@@ -1,4 +1,4 @@
-/* $Id: udns_resolver.c,v 1.43 2005/04/08 15:36:47 mjt Exp $
+/* $Id: udns_resolver.c,v 1.51 2005/05/05 19:16:43 mjt Exp $
    resolver stuff (main module)
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -71,8 +71,13 @@ union sockaddr_ns {
 #endif
 };
 
+struct dns_qlink {
+  struct dns_query *next, *prev;
+};
+
 struct dns_query {
-  unsigned char dnsq_buf[DNS_QBUF];	/* the query buffer */
+  struct dns_qlink dnsq_link;		/* list entry (should be first) */
+  dnsc_t dnsq_buf[DNS_QBUF];		/* the query buffer */
   enum dns_class dnsq_cls;		/* requested RR class */
   enum dns_type  dnsq_typ;		/* requested RR type */
   unsigned dnsq_len;			/* length of the query packet */
@@ -87,10 +92,74 @@ struct dns_query {
   dns_parse_fn *dnsq_parse;		/* parse: raw => application */
   dns_query_fn *dnsq_cbck;		/* the callback to call when done */
   void *dnsq_cbdata;			/* user data for the callback */
+#ifndef NDEBUG
   struct dns_ctx *dnsq_ctx;		/* the resolver context */
-  struct dns_query *dnsq_prev;		/* active list */
-  struct dns_query *dnsq_next;		/* active list */
+#endif
 };
+
+/* working with dns_query lists */
+
+static __inline void qlist_init(struct dns_qlink *list) {
+  list->next = list->prev = (struct dns_query *)list;
+}
+
+static __inline int qlist_empty(const struct dns_qlink *list) {
+  return list->next == (const struct dns_query *)list ? 1 : 0;
+}
+
+static __inline struct dns_query *qlist_first(struct dns_qlink *list) {
+  return list->next == (struct dns_query *)list ? 0 : list->next;
+}
+
+static __inline void qlist_remove(struct dns_query *q) {
+  q->dnsq_link.next->dnsq_link.prev = q->dnsq_link.prev;
+  q->dnsq_link.prev->dnsq_link.next = q->dnsq_link.next;
+}
+
+static __inline struct dns_query *qlist_pop(struct dns_qlink *list) {
+  struct dns_query *q = list->next;
+  if (q == (struct dns_query *)list)
+    return NULL;
+  qlist_remove(q);
+  return q;
+}
+
+/* insert q between prev and next */
+static __inline void
+qlist_insert(struct dns_query *q,
+             struct dns_query *prev, struct dns_query *next) {
+  q->dnsq_link.next = next;
+  q->dnsq_link.prev = prev;
+  prev->dnsq_link.next = next->dnsq_link.prev = q;
+}
+
+static __inline void
+qlist_insert_after(struct dns_query *q, struct dns_query *prev) {
+  qlist_insert(q, prev, prev->dnsq_link.next);
+}
+
+static __inline void
+qlist_insert_before(struct dns_query *q, struct dns_query *next) {
+  qlist_insert(q, next->dnsq_link.prev, next);
+}
+
+static __inline void
+qlist_add_tail(struct dns_query *q, struct dns_qlink *top) {
+  qlist_insert_before(q, (struct dns_query *)top);
+}
+
+static __inline void
+qlist_add_head(struct dns_query *q, struct dns_qlink *top) {
+  qlist_insert_after(q, (struct dns_query *)top);
+}
+
+#define QLIST_FIRST(list, direction) ((list)->direction)
+#define QLIST_ISLAST(list, q) ((q) == (struct dns_query*)(list))
+#define QLIST_NEXT(q, direction) ((q)->dnsq_link.direction)
+
+#define QLIST_FOR_EACH(list, q, direction) \
+  for(q = QLIST_FIRST(list, direction); \
+      !QLIST_ISLAST(list, q); q = QLIST_NEXT(q, direction))
 
 struct dns_ctx {		/* resolver context */
   /* settings */
@@ -103,21 +172,23 @@ struct dns_ctx {		/* resolver context */
   /* array of nameserver addresses */
   union sockaddr_ns dnsc_serv[DNS_MAXSERV];
   unsigned dnsc_nserv;			/* number of nameservers */
+  unsigned dnsc_salen;			/* length of socket addresses */
   /* search list for unqualified names */
-  unsigned char dnsc_srch[DNS_MAXSRCH][DNS_MAXDN];
+  dnsc_t dnsc_srch[DNS_MAXSRCH][DNS_MAXDN];
   unsigned dnsc_nsrch;			/* number of srch[] */
 
   dns_utm_fn *dnsc_utmfn;		/* register/cancel timer events */
-  void *dnsc_uctx;			/* data pointer passed to utmfn() */
+  void *dnsc_utmctx;			/* user timer context for utmfn() */
+  time_t dnsc_utmexp;			/* when user timer expires */
+
   dns_dbgfn *dnsc_udbgfn;		/* debugging function */
 
   /* dynamic data */
   unsigned short dnsc_nextid;		/* next queue ID to use */
   int dnsc_udpsock;			/* UDP socket */
-  struct dns_query *dnsc_qhead;		/* active query sorted by deadline */
-  struct dns_query *dnsc_qtail;
+  struct dns_qlink dnsc_qactive;	/* active list sorted by deadline */
   int dnsc_nactive;			/* number entries in dnsc_qactive */
-  unsigned char *dnsc_pbuf;		/* packet buffer (udpbuf size) */
+  dnsc_t *dnsc_pbuf;			/* packet buffer (udpbuf size) */
   int dnsc_qstatus;			/* last query status value */
 };
 
@@ -150,6 +221,7 @@ struct dns_ctx dns_defctx;
 #define SETCTXINITED(ctx) SETCTX(ctx); assert(CTXINITED(ctx))
 #define CTXINITED(ctx) (ctx->dnsc_flags & DNS_INITED)
 #define SETCTXFRESH(ctx) SETCTXINITED(ctx); assert(!CTXOPEN(ctx))
+#define SETCTXINACTIVE(ctx) SETCTXINITED(ctx); assert(qlist_empty(&ctx->dnsc_qactive))
 #define SETCTXOPEN(ctx) SETCTXINITED(ctx); assert(CTXOPEN(ctx))
 #define CTXOPEN(ctx) (ctx->dnsc_udpsock >= 0)
 
@@ -159,21 +231,24 @@ struct dns_ctx dns_defctx;
 static void dns_assert_ctx(const struct dns_ctx *ctx) {
   int nactive = 0;
   const struct dns_query *q;
-  for(q = ctx->dnsc_qhead; q; q = q->dnsq_next) {
+  QLIST_FOR_EACH(&ctx->dnsc_qactive, q, next) {
     assert(q->dnsq_ctx == ctx);
-    assert((q->dnsq_prev ? q->dnsq_prev->dnsq_next : ctx->dnsc_qhead) == q);
-    assert((q->dnsq_next ? q->dnsq_next->dnsq_prev : ctx->dnsc_qtail) == q);
+    assert(q->dnsq_link.next->dnsq_link.prev == q);
+    assert(q->dnsq_link.prev->dnsq_link.next == q);
     ++nactive;
   }
   assert(nactive == ctx->dnsc_nactive);
 }
 #endif
 
-#define DNS_INTERNAL	0xffff	/* internal flags mask */
-#define DNS_INITED	0x0001	/* the context is initialized */
-#define DNS_ASIS_DONE	0x0002	/* search: skip the last as-is query */
-#define DNS_SEEN_NODATA	0x0004	/* search: NODATA has been received */
-#define DNS_SEEN_FAIL	0x0008	/* search: SERVFAIL has been received */
+enum {
+  DNS_INTERNAL		= 0xffff, /* internal flags mask */
+  DNS_INITED		= 0x0001, /* the context is initialized */
+  DNS_ASIS_DONE		= 0x0002, /* search: skip the last as-is query */
+  DNS_SEEN_NODATA	= 0x0004, /* search: NODATA has been received */
+  DNS_SEEN_FAIL		= 0x0008, /* search: SERVFAIL has been received */
+  DNS_SEEN_WRONG	= 0x0010, /* search: something wrong happened */
+};
 
 static int dns_add_serv_internal(struct dns_ctx *ctx, const char *serv) {
   union sockaddr_ns *sns;
@@ -268,7 +343,7 @@ static void dns_set_opts_internal(struct dns_ctx *ctx, const char *opts) {
 }
 
 int dns_set_opts(struct dns_ctx *ctx, const char *opts) {
-  SETCTXFRESH(ctx);
+  SETCTXINACTIVE(ctx);
   dns_set_opts_internal(ctx, opts);
   return 0;
 }
@@ -276,7 +351,7 @@ int dns_set_opts(struct dns_ctx *ctx, const char *opts) {
 int dns_set_opt(struct dns_ctx *ctx, enum dns_opt opt, int val) {
   int prev;
   unsigned i;
-  SETCTXFRESH(ctx);
+  SETCTXINACTIVE(ctx);
   for(i = 0; i < sizeof(dns_opts)/sizeof(dns_opts[0]); ++i) {
     if (dns_opts[i].opt != opt) continue;
     prev = dns_ctxopt(ctx, dns_opts[i].offset);
@@ -284,7 +359,7 @@ int dns_set_opt(struct dns_ctx *ctx, enum dns_opt opt, int val) {
       unsigned v = val;
       if (v < dns_opts[i].min || v > dns_opts[i].max) {
         errno = EINVAL;
-	return -1;
+        return -1;
       }
       dns_ctxopt(ctx, dns_opts[i].offset) = v;
     }
@@ -293,7 +368,8 @@ int dns_set_opt(struct dns_ctx *ctx, enum dns_opt opt, int val) {
   if (opt == DNS_OPT_FLAGS) {
     prev = ctx->dnsc_flags & ~DNS_INTERNAL;
     if (val >= 0)
-      ctx->dnsc_flags = val & DNS_INTERNAL;
+      ctx->dnsc_flags =
+        (ctx->dnsc_flags & DNS_INTERNAL) | (val & ~DNS_INTERNAL);
     return prev;
   }
   errno = ENOSYS;
@@ -312,7 +388,7 @@ static int dns_add_srch_internal(struct dns_ctx *ctx, const char *srch) {
 }
 
 int dns_add_srch(struct dns_ctx *ctx, const char *srch) {
-  SETCTXFRESH(ctx);
+  SETCTXINACTIVE(ctx);
   return dns_add_srch_internal(ctx, srch);
 }
 
@@ -322,15 +398,44 @@ static void dns_set_srch_internal(struct dns_ctx *ctx, char *srch) {
     dns_add_srch_internal(ctx, srch);
 }
 
+static void dns_drop_utm(struct dns_ctx *ctx) {
+  if (ctx->dnsc_utmfn)
+    ctx->dnsc_utmfn(NULL, -1, ctx->dnsc_utmctx);
+  ctx->dnsc_utmctx = NULL;
+  ctx->dnsc_utmexp = -1;
+}
+
+static void
+dns_request_utm(struct dns_ctx *ctx, time_t now) {
+  struct dns_query *q;
+  time_t deadline;
+  int timeout;
+  if (!ctx->dnsc_utmfn)
+    return;
+  q = QLIST_FIRST(&ctx->dnsc_qactive, next);
+  if (QLIST_ISLAST(&ctx->dnsc_qactive, q))
+    deadline = -1, timeout = -1;
+  else if (!now || q->dnsq_deadline <= now)
+    deadline = 0, timeout = 0;
+  else
+    deadline = q->dnsq_deadline, timeout = deadline - now;
+  if (ctx->dnsc_utmexp == deadline)
+    return;
+  ctx->dnsc_utmfn(ctx, timeout, ctx->dnsc_utmctx);
+  ctx->dnsc_utmexp = deadline;
+}
+
 void dns_set_dbgfn(struct dns_ctx *ctx, dns_dbgfn *dbgfn) {
   SETCTXINITED(ctx);
   ctx->dnsc_udbgfn = dbgfn;
 }
 
-void dns_set_tmcbck(struct dns_ctx *ctx, dns_utm_fn *utmfn, void *arg) {
+void
+dns_set_tmcbck(struct dns_ctx *ctx, dns_utm_fn *fn, void *data) {
   SETCTXINITED(ctx);
-  ctx->dnsc_utmfn = utmfn;
-  ctx->dnsc_uctx = arg;
+  dns_drop_utm(ctx);
+  ctx->dnsc_utmfn = fn;
+  ctx->dnsc_utmctx = data;
 }
 
 static void dns_firstid(struct dns_ctx *ctx) {
@@ -500,6 +605,7 @@ int dns_init(int do_open) {
   ctx->dnsc_udpbuf = DNS_EDNS0PACKET;
   ctx->dnsc_port = DNS_PORT;
   ctx->dnsc_udpsock = -1;
+  qlist_init(&ctx->dnsc_qactive);
   if (dns_init_internal(ctx) != 0)
     return -1;
   dns_firstid(ctx);
@@ -516,10 +622,12 @@ struct dns_ctx *dns_new(const struct dns_ctx *ctx) {
     return NULL;
   *n = *ctx;
   n->dnsc_udpsock = -1;
-  n->dnsc_qhead = n->dnsc_qtail = NULL;
+  qlist_init(&n->dnsc_qactive);
   n->dnsc_nactive = 0;
   n->dnsc_pbuf = NULL;
   n->dnsc_qstatus = 0;
+  n->dnsc_utmfn = NULL;
+  n->dnsc_utmctx = NULL;
   dns_firstid(n);
   return n;
 }
@@ -528,14 +636,13 @@ void dns_free(struct dns_ctx *ctx) {
   struct dns_query *q;
   SETCTXINITED(ctx);
   dns_assert_ctx(ctx);
+  dns_drop_utm(ctx);
   if (ctx->dnsc_udpsock >= 0)
     closesocket(ctx->dnsc_udpsock);
   if (ctx->dnsc_pbuf)
     free(ctx->dnsc_pbuf);
-  while((q = ctx->dnsc_qhead) != NULL) {
-    ctx->dnsc_qhead = q->dnsq_next;
+  while((q = qlist_pop(&ctx->dnsc_qactive)))
     free(q);
-  }
   if (ctx != &dns_defctx)
     free(ctx);
   else
@@ -579,7 +686,9 @@ int dns_open(struct dns_ctx *ctx) {
     }
   }
 
-#if HAVE_INET6
+#if !HAVE_INET6
+  ctx->dnsc_salen = sizeof(struct sockaddr_in);
+#else
   if (have_inet6 && have_inet6 < ctx->dnsc_nserv) {
     /* convert all IPv4 addresses to IPv6 V4MAPPED */
     struct sockaddr_in6 sin6;
@@ -597,6 +706,9 @@ int dns_open(struct dns_ctx *ctx) {
       }
     }
   }
+
+  ctx->dnsc_salen = have_inet6 ?
+    sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in);
 
   if (have_inet6)
     sock = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP);
@@ -665,36 +777,25 @@ void dns_setstatus(struct dns_ctx *ctx, int status) {
   ctx->dnsc_qstatus = status;
 }
 
-static void dns_removeq(struct dns_ctx *ctx, struct dns_query *q) {
-  if (ctx->dnsc_utmfn) ctx->dnsc_utmfn(ctx->dnsc_uctx, q, 0);
-  if (q->dnsq_next) q->dnsq_next->dnsq_prev = q->dnsq_prev;
-  else ctx->dnsc_qtail = q->dnsq_prev;
-  if (q->dnsq_prev) q->dnsq_prev->dnsq_next = q->dnsq_next;
-  else ctx->dnsc_qhead = q->dnsq_next;
-}
-
 /* End the query and return the result to the caller.
- * When the query is being submitted, in which case q->dnsq_deadline is 0 --
- * don't call the callback routine, dns_submit() will return the value directly.
  */
-static int dns_end_query(struct dns_ctx *ctx, struct dns_query *q, int status, void *result) {
+static void
+dns_end_query(struct dns_ctx *ctx, struct dns_query *q,
+              int status, void *result) {
   dns_query_fn *cbck = q->dnsq_cbck;
   void *cbdata = q->dnsq_cbdata;
   ctx->dnsc_qstatus = status;
   assert((status < 0 && result == 0) || (status >= 0 && result != 0));
-  if (!q->dnsq_deadline) {	/* freshly submitted query */
-    assert(status < 0);
-    return status;
-  }
   assert(cbck != 0);	/*XXX callback may be NULL */
   assert(ctx->dnsc_nactive > 0);
   --ctx->dnsc_nactive;
   /* force the query to be unconnected */
   /*memset(q, 0, sizeof(*q));*/
+#ifndef NDEBUG
   q->dnsq_ctx = NULL;
+#endif
   free(q);
   cbck(ctx, result, cbdata);
-  return status;
 }
 
 #define DNS_DBG(ctx, code, sa, slen, pkt, plen) \
@@ -714,8 +815,8 @@ static int dns_end_query(struct dns_ctx *ctx, struct dns_query *q, int status, v
  */
 static unsigned dns_next_srch(const struct dns_ctx *ctx, struct dns_query *q) {
   unsigned ol = q->dnsq_origdnl - 1;	/* origdnl is at least 1 */
-  unsigned char *p = dns_payload(q->dnsq_buf) + ol;
-  const unsigned char *dn;
+  dnsc_t *p = dns_payload(q->dnsq_buf) + ol;
+  dnscc_t *dn;
   int n;
   while (q->dnsq_srchi < ctx->dnsc_nsrch) {
     dn = ctx->dnsc_srch[q->dnsq_srchi++];
@@ -756,7 +857,7 @@ static int dns_find_serv(const struct dns_ctx *ctx, struct dns_query *q) {
 }
 
 /* send the query out and add it to the active list. */
-static int dns_send(struct dns_ctx *ctx, struct dns_query *q, time_t now) {
+static void dns_send(struct dns_ctx *ctx, struct dns_query *q, time_t now) {
   int n;
   struct dns_query *p;
 
@@ -766,14 +867,15 @@ static int dns_send(struct dns_ctx *ctx, struct dns_query *q, time_t now) {
 
   /* if there's no more servers, fail the query */
   n = dns_find_serv(ctx, q);
-  if (n < 0)
-    return dns_end_query(ctx, q, DNS_E_TEMPFAIL, 0);
+  if (n < 0) {
+    dns_end_query(ctx, q, DNS_E_TEMPFAIL, 0);
+    return;
+  }
 
   /* send the query */
   n = 10;
   while (sendto(ctx->dnsc_udpsock, q->dnsq_buf, q->dnsq_len, 0,
-                &ctx->dnsc_serv[q->dnsq_servi].sa,
-                sizeof(union sockaddr_ns)) < 0) {
+                &ctx->dnsc_serv[q->dnsq_servi].sa, ctx->dnsc_salen) < 0) {
     /*XXX just ignore the sendto() error for now and try again.
      * In the future, it may be possible to retrieve the error code
      * and find which operation/query failed.
@@ -781,7 +883,8 @@ static int dns_send(struct dns_ctx *ctx, struct dns_query *q, time_t now) {
      */
     if (--n) continue;
     /* if we can't send the query, fail it. */
-    return dns_end_query(ctx, q, DNS_E_TEMPFAIL, 0);
+    dns_end_query(ctx, q, DNS_E_TEMPFAIL, 0);
+    return;
   }
   DNS_DBGQ(ctx, q, 1,
            &ctx->dnsc_serv[q->dnsq_servi].sa, sizeof(union sockaddr_ns),
@@ -794,30 +897,14 @@ static int dns_send(struct dns_ctx *ctx, struct dns_query *q, time_t now) {
   ++q->dnsq_servi;
   n = dns_find_serv(ctx, q) ? ctx->dnsc_timeout << (q->dnsq_try - 1) : 1;
 
-  /* request timer, report error if failed */
-  if (ctx->dnsc_utmfn &&
-      ctx->dnsc_utmfn(ctx->dnsc_uctx, q, n) != 0)
-    return dns_end_query(ctx, q, DNS_E_NOMEM, 0);	/* assume NOMEM */
-
-  /* Only touch q->dnsq_deadline after everything is ok: dns_end_query depends on it */
-  q->dnsq_deadline = now = (now ? now : time(NULL)) + n;
+  q->dnsq_deadline = now = now + n;
 
   /* insert the query to the tail of the list */
-  p = ctx->dnsc_qtail;
-  while (p && p->dnsq_deadline > now)
-    p = p->dnsq_prev;
-  if ((q->dnsq_prev = p)) {
-    if ((q->dnsq_next = p->dnsq_next)) p->dnsq_next->dnsq_prev = q;
-    else ctx->dnsc_qtail = q;
-    p->dnsq_next = q;
-  }
-  else {
-    if ((q->dnsq_next = ctx->dnsc_qhead)) ctx->dnsc_qhead->dnsq_prev = q;
-    else ctx->dnsc_qtail = q;
-    ctx->dnsc_qhead = q;
-  }
+  QLIST_FOR_EACH(&ctx->dnsc_qactive, p, prev)
+    if (p->dnsq_deadline <= now)
+      break;
+  qlist_insert_after(q, p);
 
-  return 0;
 }
 
 static void dns_dummy_cb(struct dns_ctx *ctx, void *result, void *data) {
@@ -827,9 +914,9 @@ static void dns_dummy_cb(struct dns_ctx *ctx, void *result, void *data) {
 
 struct dns_query *
 dns_submit_dn(struct dns_ctx *ctx,
-              const unsigned char *dn, int qcls, int qtyp, int flags,
-              dns_parse_fn *parse, dns_query_fn *cbck, void *data, time_t now) {
-  unsigned char *p;
+              dnscc_t *dn, int qcls, int qtyp, int flags,
+              dns_parse_fn *parse, dns_query_fn *cbck, void *data) {
+  dnsc_t *p;
   unsigned dnl;
   struct dns_query *q;
   SETCTXOPEN(ctx);
@@ -841,7 +928,9 @@ dns_submit_dn(struct dns_ctx *ctx,
     return NULL;
   }
 
+#ifndef NDEBUG
   q->dnsq_ctx = ctx;
+#endif
   q->dnsq_parse = parse;
   q->dnsq_cbck = cbck ? cbck : dns_dummy_cb;
   q->dnsq_cbdata = data;
@@ -880,20 +969,17 @@ dns_submit_dn(struct dns_ctx *ctx,
   assert(p <= q->dnsq_buf + DNS_QBUF);
   q->dnsq_len = p - q->dnsq_buf;
 
-  if (dns_send(ctx, q, now) == 0) {
-    ++ctx->dnsc_nactive;
-    return q;
-  }
-  else {
-    free(q);
-    return NULL;
-  }
+  qlist_add_head(q, &ctx->dnsc_qactive);
+  ++ctx->dnsc_nactive;
+  dns_request_utm(ctx, 0);
+
+  return q;
 }
 
 struct dns_query *
 dns_submit_p(struct dns_ctx *ctx,
              const char *name, int qcls, int qtyp, int flags,
-             dns_parse_fn *parse, dns_query_fn *cbck, void *data, time_t now) {
+             dns_parse_fn *parse, dns_query_fn *cbck, void *data) {
   int isabs;
   SETCTXOPEN(ctx);
   if (dns_ptodn(name, 0, ctx->dnsc_pbuf, DNS_MAXDN, &isabs) <= 0) {
@@ -902,18 +988,8 @@ dns_submit_p(struct dns_ctx *ctx,
   }
   if (isabs)
     flags |= DNS_NOSRCH;
-  return dns_submit_dn(ctx, ctx->dnsc_pbuf, qcls, qtyp, flags, parse, cbck, data, now);
-}
-
-/* handle user timer timeout (may happen only for active requests).
- * Note the user timer has been expired already. */
-void dns_tmevent(struct dns_query *q, time_t now) {
-  struct dns_ctx *ctx = q->dnsq_ctx;
-  assert(ctx != 0);
-  assert(q->dnsq_deadline > 0 && (now ? now : time(0)) >= q->dnsq_deadline);
-  dns_assert_ctx(ctx);
-  dns_removeq(ctx, q);		/*XXX removeq also cancels user timer */
-  dns_send(ctx, q, now);
+  return
+    dns_submit_dn(ctx, ctx->dnsc_pbuf, qcls, qtyp, flags, parse, cbck, data);
 }
 
 /* process readable fd condition.
@@ -931,7 +1007,8 @@ void dns_ioevent(struct dns_ctx *ctx, time_t now) {
   int r;
   unsigned servi, l;
   struct dns_query *q;
-  unsigned char *pbuf;
+  dnsc_t *pbuf;
+  dnscc_t *pend, *pcur;
   void *result;
   union sockaddr_ns sns;
   socklen_t slen;
@@ -942,11 +1019,12 @@ void dns_ioevent(struct dns_ctx *ctx, time_t now) {
   dns_assert_ctx(ctx);
   pbuf = ctx->dnsc_pbuf;
 
+  if (!now) now = time(NULL);
+
 again:
 
-  assert(CTXOPEN(ctx));
-
   for(;;) { /* receive the reply */
+    dnsc_t dn[DNS_MAXDN];
 
     slen = sizeof(sns);
     r = recvfrom(ctx->dnsc_udpsock, pbuf, ctx->dnsc_udpbuf, 0, &sns.sa, &slen);
@@ -961,10 +1039,14 @@ again:
        * remote errors should be ignored (for now anyway).
        */
 #ifdef WIN32
-      if (WSAGetLastError() != WSAEWOULDBLOCK) return;
+      if (WSAGetLastError() != WSAEWOULDBLOCK)
 #else
-      if (errno == EAGAIN) return;
+      if (errno == EAGAIN)
 #endif
+      {
+        dns_request_utm(ctx, now);
+	return;
+      }
       continue;
     }
     /* ignore replies from wrong server */
@@ -980,7 +1062,8 @@ again:
 #endif
     if (sns.sa.sa_family == AF_INET && slen >= sizeof(sns.sin)) {
       for (servi = 0; servi < ctx->dnsc_nserv; ++servi)
-        if (memcmp(&ctx->dnsc_serv[servi].sin, &sns.sin, sizeof(sns.sin)) == 0)
+        if (ctx->dnsc_serv[servi].sin.sin_addr.s_addr == sns.sin.sin_addr.s_addr &&
+            ctx->dnsc_serv[servi].sin.sin_port == sns.sin.sin_port)
           break;
     }
     else {
@@ -992,8 +1075,12 @@ again:
       continue;
     }
 
-    if (r < DNS_HSIZE || dns_numqd(pbuf) != 1 || dns_opcode(pbuf) != 0) {
-      /*XXX ignore non-query replies and replies with numqd!=1 */
+    pend = pbuf + r;
+    pcur = dns_payload(pbuf);
+    if (pcur >= pend || dns_numqd(pbuf) != 1 || dns_opcode(pbuf) != 0 ||
+        dns_getdn(pbuf, &pcur, pend, dn, sizeof(dn)) < 0 ||
+        pcur + 4 > pend) {
+      /*XXX ignore non-query replies and replies with numqd!=1? */
       DNS_DBG(ctx, -3, &sns.sa, slen, pbuf, r);
       continue;
     }
@@ -1011,8 +1098,9 @@ again:
      * Note we pick any request, even queued for another
      * server - in case first server replies a bit later
      * than we expected. */
-    for (q = ctx->dnsc_qhead; ; q = q->dnsq_next) {
-      if (!q) {		/* no more requests: old reply? */
+    for (q = QLIST_FIRST(&ctx->dnsc_qactive, next);; q = QLIST_NEXT(q, next)) {
+      if (QLIST_ISLAST(&ctx->dnsc_qactive, q)) {
+        /* no more requests: old reply? */
         DNS_DBG(ctx, -5, &sns.sa, slen, pbuf, r);
         goto again;
       }
@@ -1027,13 +1115,9 @@ again:
       if (q->dnsq_buf[DNS_H_QID1] != pbuf[DNS_H_QID1] ||
           q->dnsq_buf[DNS_H_QID2] != pbuf[DNS_H_QID2])
         continue;
-      /* check qDN */
-      if (!(l = dns_dnequal(dns_payload(q->dnsq_buf), dns_payload(pbuf))))
-        continue;
-      if (DNS_HSIZE + l + 4 > (unsigned)r)	/* short packet? */
-        goto again;
-      /* check qCLS and qTYP */
-      if (memcmp(dns_payload(q->dnsq_buf) + l, dns_payload(pbuf) + l, 4) != 0)
+      /* check qDN, qCLS and qTYP */
+      if (!(l = dns_dnequal(dn, dns_payload(q->dnsq_buf))) ||
+          memcmp(pcur, dns_payload(q->dnsq_buf) + l, 4) != 0)
         continue;
       /* ok, this is expected reply with matching query. */
       break;
@@ -1052,7 +1136,7 @@ again:
   switch(dns_rcode(pbuf)) {
 
   case DNS_R_NOERROR:
-    dns_removeq(ctx, q);
+    qlist_remove(q);
     if (!dns_numan(pbuf)) {	/* no data of requested type */
       q->dnsq_flags |= DNS_SEEN_NODATA;
       r = DNS_E_NODATA;
@@ -1060,7 +1144,7 @@ again:
     }
     /* the only case where we may succeed */
     if (q->dnsq_parse)
-      r = q->dnsq_parse(pbuf, pbuf + r, &result);
+      r = q->dnsq_parse(dns_payload(q->dnsq_buf), pbuf, pcur, pend, &result);
     else if ((result = malloc(r)) != NULL)
       memcpy(result, pbuf, r);
     else
@@ -1071,7 +1155,7 @@ again:
     goto again;
 
   case DNS_R_NXDOMAIN:
-    dns_removeq(ctx, q);
+    qlist_remove(q);
     r = DNS_E_NXDOMAIN;
     break;
 
@@ -1085,12 +1169,12 @@ again:
     /* try next server */
     q->dnsq_servskip |= 1 << servi;	/* don't retry this server */
     if (!q->dnsq_servwait) {
-      dns_removeq(ctx, q);
+      qlist_remove(q);
       dns_send(ctx, q, now);
     }
     else {
       /* else this is the only place where q will be left unconnected
-       * if we will move dns_removeq() before the switch{}. */
+       * if we will move qlist_remove() before the switch{}. */
     }
     goto again;
 
@@ -1138,12 +1222,13 @@ int dns_timeouts(struct dns_ctx *ctx, int maxwait, time_t now) {
   SETCTX(ctx);
   dns_assert_ctx(ctx);
   if (!now) now = time(NULL);
-  while ((q = ctx->dnsc_qhead) && q->dnsq_deadline <= now) {
-    if ((ctx->dnsc_qhead = q->dnsq_next)) q->dnsq_prev = NULL;
-    else ctx->dnsc_qtail = NULL;
+  while((q = qlist_first(&ctx->dnsc_qactive)) && q->dnsq_deadline <= now) {
+    qlist_remove(q);
     dns_send(ctx, q, now);
   }
-  if (!q) return maxwait;
+  dns_request_utm(ctx, now);
+  if (!q)
+    return maxwait;
   w = q->dnsq_deadline - now;
   return maxwait < 0 || maxwait > w ? w : maxwait;
 }
@@ -1216,11 +1301,11 @@ void *dns_resolve(struct dns_ctx *ctx, struct dns_query *q) {
 }
 
 void *dns_resolve_dn(struct dns_ctx *ctx,
-                     const unsigned char *dn, int qcls, int qtyp, int flags,
+                     dnscc_t *dn, int qcls, int qtyp, int flags,
                      dns_parse_fn *parse) {
   return
     dns_resolve(ctx,
-      dns_submit_dn(ctx, dn, qcls, qtyp, flags, parse, NULL, NULL, 0));
+      dns_submit_dn(ctx, dn, qcls, qtyp, flags, parse, NULL, NULL));
 }
 
 void *dns_resolve_p(struct dns_ctx *ctx,
@@ -1228,7 +1313,7 @@ void *dns_resolve_p(struct dns_ctx *ctx,
                     dns_parse_fn *parse) {
   return
     dns_resolve(ctx,
-      dns_submit_p(ctx, name, qcls, qtyp, flags, parse, NULL, NULL, 0));
+      dns_submit_p(ctx, name, qcls, qtyp, flags, parse, NULL, NULL));
 }
 
 int dns_cancel(struct dns_ctx *ctx, struct dns_query *q) {
@@ -1239,7 +1324,9 @@ int dns_cancel(struct dns_ctx *ctx, struct dns_query *q) {
   assert(q->dnsq_cbck != dns_resolve_cb && "can't cancel syncronous query");
   if (q->dnsq_cbck == dns_resolve_cb)
     return (ctx->dnsc_qstatus = DNS_E_BADQUERY);
-  dns_removeq(ctx, q);
+  qlist_remove(q);
   --ctx->dnsc_nactive;
+  dns_request_utm(ctx, 0);
   return 0;
 }
+

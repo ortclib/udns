@@ -1,4 +1,4 @@
-/* $Id: udns_rr_mx.c,v 1.11 2005/04/05 22:51:32 mjt Exp $
+/* $Id: udns_rr_mx.c,v 1.13 2005/04/20 06:44:34 mjt Exp $
    parse/query MX IN records
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -23,25 +23,27 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "udns.h"
 
 int
-dns_parse_mx(const unsigned char *pkt, const unsigned char *pkte,
+dns_parse_mx(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
              void **result) {
-  struct dns_rr_mx *ret = NULL;
+  struct dns_rr_mx *ret;
   struct dns_parse p;
   struct dns_rr rr;
-  const unsigned char *cur;
   int r, l;
   char *sp;
-  unsigned char mx[DNS_MAXDN];
+  dnsc_t mx[DNS_MAXDN];
+
+  assert(dns_get16(cur+2) == DNS_C_IN && dns_get16(cur+0) == DNS_T_MX);
 
   /* first, validate the answer and count size of the result */
   l = 0;
-  dns_initparse(&p, DNS_C_ANY, DNS_T_MX, pkt, pkte);
+  dns_initparse(&p, qdn, pkt, cur, end);
   while((r = dns_nextrr(&p, &rr)) > 0) {
     cur = rr.dnsrr_dptr + 2;
-    r = dns_getdn(pkt, &cur, rr.dnsrr_dend, mx, sizeof(mx));
+    r = dns_getdn(pkt, &cur, end, mx, sizeof(mx));
     if (r <= 0 || cur != rr.dnsrr_dend)
       return DNS_E_PROTOCOL;
     l += dns_dntop_size(mx);
@@ -61,12 +63,12 @@ dns_parse_mx(const unsigned char *pkt, const unsigned char *pkte,
 
   /* and 3rd, fill in result, finally */
   sp = (char*)(ret->dnsmx_mx + p.dnsp_nrr);
-  for (dns_rewind(&p), r = 0; dns_nextrr(&p, &rr); ++r) {
+  for (dns_rewind(&p, qdn), r = 0; dns_nextrr(&p, &rr); ++r) {
     ret->dnsmx_mx[r].name = sp;
     cur = rr.dnsrr_dptr;
     ret->dnsmx_mx[r].priority = dns_get16(cur);
     cur += 2;
-    dns_getdn(pkt, &cur, pkte, mx, sizeof(mx));
+    dns_getdn(pkt, &cur, end, mx, sizeof(mx));
     sp += dns_dntop(mx, sp, DNS_MAXNAME);
   }
   dns_stdrr_finish((struct dns_rr_null *)ret, sp, &p);
@@ -76,10 +78,10 @@ dns_parse_mx(const unsigned char *pkt, const unsigned char *pkte,
 
 struct dns_query *
 dns_submit_mx(struct dns_ctx *ctx, const char *name, int flags,
-              dns_query_mx_fn *cbck, void *data, time_t now) {
+              dns_query_mx_fn *cbck, void *data) {
   return
     dns_submit_p(ctx, name, DNS_C_IN, DNS_T_MX, flags,
-                 dns_parse_mx, (dns_query_fn *)cbck, data, now);
+                 dns_parse_mx, (dns_query_fn *)cbck, data);
 }
 
 struct dns_rr_mx *

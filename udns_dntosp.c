@@ -1,4 +1,4 @@
-/* $Id: udns_dntosp.c,v 1.4 2005/04/05 22:51:32 mjt Exp $
+/* $Id: udns_dntosp.c,v 1.5 2005/04/19 21:48:09 mjt Exp $
    dns_dntosp() = convert DN to asciiz string using static buffer
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -25,6 +25,6 @@
 
 static char name[DNS_MAXNAME];
 
-const char *dns_dntosp(const unsigned char *dn) {
+const char *dns_dntosp(dnscc_t *dn) {
   return dns_dntop(dn, name, sizeof(name)) > 0 ? name : 0;
 }

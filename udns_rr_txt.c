@@ -1,4 +1,4 @@
-/* $Id: udns_rr_txt.c,v 1.12 2005/04/05 22:51:32 mjt Exp $
+/* $Id: udns_rr_txt.c,v 1.14 2005/04/20 06:44:34 mjt Exp $
    parse/query TXT records
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -23,20 +23,24 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "udns.h"
 
-int dns_parse_txt(const unsigned char *pkt, const unsigned char *pkte,
-                  void **result) {
-  struct dns_rr_txt *ret = NULL;
+int
+dns_parse_txt(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
+              void **result) {
+  struct dns_rr_txt *ret;
   struct dns_parse p;
   struct dns_rr rr;
   int r, l;
-  unsigned char *sp;
-  const unsigned char *cp, *ep;
+  dnsc_t *sp;
+  dnscc_t *cp, *ep;
+
+  assert(dns_get16(cur+0) == DNS_T_TXT);
 
   /* first, validate the answer and count size of the result */
   l = 0;
-  dns_initparse(&p, DNS_C_ANY, DNS_T_TXT, pkt, pkte);
+  dns_initparse(&p, qdn, pkt, cur, end);
   while((r = dns_nextrr(&p, &rr)) > 0) {
     cp = rr.dnsrr_dptr; ep = rr.dnsrr_dend;
     while(cp < ep) {
@@ -61,8 +65,8 @@ int dns_parse_txt(const unsigned char *pkt, const unsigned char *pkte,
   ret->dnstxt_txt = (struct dns_txt *)(ret+1);
 
   /* and 3rd, fill in result, finally */
-  sp = (unsigned char*)(ret->dnstxt_txt + p.dnsp_nrr);
-  for(dns_rewind(&p), r = 0; dns_nextrr(&p, &rr) > 0; ++r) {
+  sp = (dnsc_t*)(ret->dnstxt_txt + p.dnsp_nrr);
+  for(dns_rewind(&p, qdn), r = 0; dns_nextrr(&p, &rr) > 0; ++r) {
     ret->dnstxt_txt[r].txt = sp;
     cp = rr.dnsrr_dptr; ep = rr.dnsrr_dend;
     while(cp < ep) {
@@ -81,10 +85,10 @@ int dns_parse_txt(const unsigned char *pkt, const unsigned char *pkte,
 
 struct dns_query *
 dns_submit_txt(struct dns_ctx *ctx, const char *name, int qcls, int flags,
-               dns_query_txt_fn *cbck, void *data, time_t now) {
+               dns_query_txt_fn *cbck, void *data) {
   return
     dns_submit_p(ctx, name, qcls, DNS_T_TXT, flags,
-                 dns_parse_txt, (dns_query_fn *)cbck, data, now);
+                 dns_parse_txt, (dns_query_fn *)cbck, data);
 }
 
 struct dns_rr_txt *

@@ -1,4 +1,4 @@
-/* $Id: udns_rr_a.c,v 1.12 2005/04/06 00:57:50 mjt Exp $
+/* $Id: udns_rr_a.c,v 1.14 2005/04/20 06:44:34 mjt Exp $
    parse/query A/AAAA IN records
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -43,25 +43,24 @@ struct dns_rr_a {
 };
 
 static int
-dns_parse_a(int qtyp, unsigned size,
-            const unsigned char *pkt, const unsigned char *pkte,
-            void **result) {
+dns_parse_a(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
+            void **result, unsigned dsize) {
   struct dns_rr_a *ret;
   struct dns_parse p;
   struct dns_rr rr;
   int r;
 
   /* first, validate and count number of addresses */
-  dns_initparse(&p, DNS_C_IN, qtyp, pkt, pkte);
+  dns_initparse(&p, qdn, pkt, cur, end);
   while((r = dns_nextrr(&p, &rr)) > 0)
-    if (rr.dnsrr_dsz != size)
+    if (rr.dnsrr_dsz != dsize)
       return DNS_E_PROTOCOL;
   if (r < 0)
     return DNS_E_PROTOCOL;
   else if (!p.dnsp_nrr)
     return DNS_E_NODATA;
 
-  ret = malloc(sizeof(*ret) + size * p.dnsp_nrr + dns_stdrr_size(&p));
+  ret = malloc(sizeof(*ret) + dsize * p.dnsp_nrr + dns_stdrr_size(&p));
   if (!ret)
     return DNS_E_NOMEM;
 
@@ -69,27 +68,29 @@ dns_parse_a(int qtyp, unsigned size,
   ret->dnsa_addr = (unsigned char*)(ret+1);
 
   /* copy the RRs */
-  for (dns_rewind(&p), r = 0; dns_nextrr(&p, &rr); ++r)
-    memcpy(ret->dnsa_addr + size * r, rr.dnsrr_dptr, size);
+  for (dns_rewind(&p, qdn), r = 0; dns_nextrr(&p, &rr); ++r)
+    memcpy(ret->dnsa_addr + dsize * r, rr.dnsrr_dptr, dsize);
 
   dns_stdrr_finish((struct dns_rr_null *)ret,
-                   (char *)(ret->dnsa_addr + size * p.dnsp_nrr), &p);
+                   (char *)(ret->dnsa_addr + dsize * p.dnsp_nrr), &p);
   *result = ret;
   return 0;
 }
 
 int
-dns_parse_a4(const unsigned char *pkt, const unsigned char *pkte, void **ret) {
+dns_parse_a4(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
+             void **result) {
   assert(sizeof(struct in_addr) == 4);
-  return dns_parse_a(DNS_T_A, 4, pkt, pkte, ret);
+  assert(dns_get16(cur+2) == DNS_C_IN && dns_get16(cur+0) == DNS_T_A);
+  return dns_parse_a(qdn, pkt, cur, end, result, 4);
 }
 
 struct dns_query *
 dns_submit_a4(struct dns_ctx *ctx, const char *name, int flags,
-              dns_query_a4_fn *cbck, void *data, time_t now) {
+              dns_query_a4_fn *cbck, void *data) {
   return
     dns_submit_p(ctx, name, DNS_C_IN, DNS_T_A, flags,
-                 dns_parse_a4, (dns_query_fn*)cbck, data, now);
+                 dns_parse_a4, (dns_query_fn*)cbck, data);
 }
 
 struct dns_rr_a4 *
@@ -99,19 +100,21 @@ dns_resolve_a4(struct dns_ctx *ctx, const char *name, int flags) {
 }
 
 int
-dns_parse_a6(const unsigned char *pkt, const unsigned char *pkte, void **ret) {
+dns_parse_a6(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
+             void **result) {
 #ifdef AF_INET6
   assert(sizeof(struct in6_addr) == 16);
 #endif
-  return dns_parse_a(DNS_T_AAAA, 16, pkt, pkte, ret);
+  assert(dns_get16(cur+2) == DNS_C_IN && dns_get16(cur+0) == DNS_T_AAAA);
+  return dns_parse_a(qdn, pkt, cur, end, result, 16);
 }
 
 struct dns_query *
 dns_submit_a6(struct dns_ctx *ctx, const char *name, int flags,
-              dns_query_a6_fn *cbck, void *data, time_t now) {
+              dns_query_a6_fn *cbck, void *data) {
   return
     dns_submit_p(ctx, name, DNS_C_IN, DNS_T_AAAA, flags,
-                 dns_parse_a6, (dns_query_fn*)cbck, data, now);
+                 dns_parse_a6, (dns_query_fn*)cbck, data);
 }
 
 struct dns_rr_a6 *

@@ -1,12 +1,6 @@
-$Id: TODO,v 1.9 2005/04/08 15:43:00 mjt Exp $
+$Id: TODO,v 1.10 2005/04/19 21:48:09 mjt Exp $
 
 The following is mostly an internal, not user-visible stuff.
-
-* currently, udns assumes replies only contain back DN pointers, no forward
-  pointers.  In theory (and in RFCs), this is not mandated.  Fixing it may
-  be easy (dns_getdn() routine) for all cases but not for the most important
-  one: the qDN processing in udns_resolver.c:dns_send() - this may require
-  changing dns_firstrr()/dns_nextrr() and parsing routines interface.
 
 * allow NULL callbacks?  Or provide separate resolver
   context list of queries which are done but wich did not

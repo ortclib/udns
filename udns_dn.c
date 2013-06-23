@@ -1,4 +1,4 @@
-/* $Id: udns_dn.c,v 1.4 2005/04/05 22:51:32 mjt Exp $
+/* $Id: udns_dn.c,v 1.5 2005/04/19 21:48:09 mjt Exp $
    domain names manipulation routines
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -24,24 +24,23 @@
 #include <string.h>
 #include "udns.h"
 
-unsigned dns_dnlen(const unsigned char *dn) {
-  register const unsigned char *d = dn;
+unsigned dns_dnlen(dnscc_t *dn) {
+  register dnscc_t *d = dn;
   while(*d)
     d += 1 + *d;
   return (unsigned)(d - dn) + 1;
 }
 
-unsigned dns_dnlabels(register const unsigned char *dn) {
+unsigned dns_dnlabels(register dnscc_t *dn) {
   register unsigned l = 0;
   while(*dn)
     ++l, dn += 1 + *dn;
   return l;
 }
 
-unsigned dns_dnequal(register const unsigned char *dn1,
-                     register const unsigned char *dn2) {
+unsigned dns_dnequal(register dnscc_t *dn1, register dnscc_t *dn2) {
   register unsigned c;
-  const unsigned char *dn = dn1;
+  dnscc_t *dn = dn1;
   for(;;) {
     if ((c = *dn1++) != *dn2++)
       return 0;
@@ -56,7 +55,7 @@ unsigned dns_dnequal(register const unsigned char *dn1,
 }
 
 unsigned
-dns_dntodn(const unsigned char *sdn, unsigned char *ddn, unsigned ddnsiz) {
+dns_dntodn(dnscc_t *sdn, dnsc_t *ddn, unsigned ddnsiz) {
   unsigned sdnlen = dns_dnlen(sdn);
   if (ddnsiz < sdnlen)
     return 0;
@@ -66,15 +65,14 @@ dns_dntodn(const unsigned char *sdn, unsigned char *ddn, unsigned ddnsiz) {
 
 int
 dns_ptodn(const char *name, unsigned namelen,
-          unsigned char *dn, unsigned dnsiz,
-          int *isabs)
+          dnsc_t *dn, unsigned dnsiz, int *isabs)
 {
-  unsigned char *dp;		/* current position in dn (len byte first) */
-  unsigned char *const de	/* end of dn: last byte that can be filled up */
+  dnsc_t *dp;		/* current position in dn (len byte first) */
+  dnsc_t *const de	/* end of dn: last byte that can be filled up */
       = dn + (dnsiz >= DNS_MAXDN ? DNS_MAXDN : dnsiz) - 1;
-  const unsigned char *np = (const unsigned char *)name;
-  const unsigned char *ne = np + (namelen ? namelen : strlen(np));
-  unsigned char *llab;	/* start of last label (llab[-1] will be length) */
+  dnscc_t *np = (dnscc_t *)name;
+  dnscc_t *ne = np + (namelen ? namelen : strlen(np));
+  dnsc_t *llab;		/* start of last label (llab[-1] will be length) */
   unsigned c;		/* next input character, or length of last label */
 
   if (!dnsiz)
@@ -86,7 +84,7 @@ dns_ptodn(const char *name, unsigned namelen,
     if (*np == '.') {	/* label delimiter */
       c = dp - llab;		/* length of the label */
       if (!c) {			/* empty label */
-        if (np == (const unsigned char *)name && np + 1 == ne) {
+        if (np == (dnscc_t *)name && np + 1 == ne) {
           /* special case for root dn, aka `.' */
           ++np;
           break;
@@ -95,7 +93,7 @@ dns_ptodn(const char *name, unsigned namelen,
       }
       if (c > DNS_MAXLABEL)
         return -1;		/* label too long */
-      llab[-1] = (unsigned char)c; /* update len of last label */
+      llab[-1] = (dnsc_t)c;	/* update len of last label */
       llab = ++dp; /* start new label, llab[-1] will be len of it */
       ++np;
       continue;
@@ -130,12 +128,12 @@ dns_ptodn(const char *name, unsigned namelen,
     }
     else
       c = *np++;
-    *dp++ = (unsigned char)c; /* place next out byte */
+    *dp++ = (dnsc_t)c;	/* place next out byte */
   }
 
   if ((c = dp - llab) > DNS_MAXLABEL)
     return -1;				/* label too long */
-  if ((llab[-1] = (unsigned char)c) != 0) {
+  if ((llab[-1] = (dnsc_t)c) != 0) {
     *dp++ = 0;
     if (isabs)
       *isabs = 0;
@@ -146,14 +144,14 @@ dns_ptodn(const char *name, unsigned namelen,
   return dp - dn;
 }
 
-const unsigned char dns_inaddr_arpa_dn[14] = "\07in-addr\04arpa";
+dnscc_t dns_inaddr_arpa_dn[14] = "\07in-addr\04arpa";
 
-unsigned char *
-dns_a4todn_(const struct in_addr *addr, unsigned char *dn, unsigned char *dne) {
-  unsigned char *p;
+dnsc_t *
+dns_a4todn_(const struct in_addr *addr, dnsc_t *dn, dnsc_t *dne) {
+  dnsc_t *p;
   unsigned n;
-  const unsigned char *s = ((const unsigned char *)addr) + 4;
-  while(--s >= (const unsigned char *)addr) {
+  dnscc_t *s = ((dnscc_t *)addr) + 4;
+  while(--s >= (dnscc_t *)addr) {
     n = *s;
     p = dn + 1;
     if (n > 99) {
@@ -177,10 +175,10 @@ dns_a4todn_(const struct in_addr *addr, unsigned char *dn, unsigned char *dne) {
   return dn;
 }
 
-int dns_a4todn(const struct in_addr *addr, const unsigned char *tdn,
-               unsigned char *dn, unsigned dnsiz) {
-  unsigned char *dne = dn + (dnsiz > DNS_MAXDN ? DNS_MAXDN : dnsiz);
-  unsigned char *p;
+int dns_a4todn(const struct in_addr *addr, dnscc_t *tdn,
+               dnsc_t *dn, unsigned dnsiz) {
+  dnsc_t *dne = dn + (dnsiz > DNS_MAXDN ? DNS_MAXDN : dnsiz);
+  dnsc_t *p;
   unsigned l;
   p = dns_a4todn_(addr, dn, dne);
   if (!p) return 0;
@@ -193,8 +191,8 @@ int dns_a4todn(const struct in_addr *addr, const unsigned char *tdn,
 }
 
 int dns_a4ptodn(const struct in_addr *addr, const char *tname,
-                unsigned char *dn, unsigned dnsiz) {
-  unsigned char *p;
+                dnsc_t *dn, unsigned dnsiz) {
+  dnsc_t *p;
   int r;
   if (!tname)
     return dns_a4todn(addr, NULL, dn, dnsiz);
@@ -204,15 +202,14 @@ int dns_a4ptodn(const struct in_addr *addr, const char *tname,
   return r != 0 ? r : dnsiz >= DNS_MAXDN ? -1 : 0;
 }
 
-const unsigned char dns_ip6_arpa_dn[10] = "\03ip6\04arpa";
+dnscc_t dns_ip6_arpa_dn[10] = "\03ip6\04arpa";
 
-unsigned char *
-dns_a6todn_(const struct in6_addr *addr,
-            unsigned char *dn, unsigned char *dne) {
+dnsc_t *
+dns_a6todn_(const struct in6_addr *addr, dnsc_t *dn, dnsc_t *dne) {
   unsigned n;
-  const unsigned char *s = ((const unsigned char *)addr) + 16;
+  dnscc_t *s = ((dnscc_t *)addr) + 16;
   if (dn + 64 > dne) return 0;
-  while(--s >= (const unsigned char *)addr) {
+  while(--s >= (dnscc_t *)addr) {
     *dn++ = 1;
     n = *s & 0x0f;
     *dn++ = n > 9 ? n + 'a' - 10 : n + '0';
@@ -223,10 +220,10 @@ dns_a6todn_(const struct in6_addr *addr,
   return dn;
 }
 
-int dns_a6todn(const struct in6_addr *addr, const unsigned char *tdn,
-               unsigned char *dn, unsigned dnsiz) {
-  unsigned char *dne = dn + (dnsiz > DNS_MAXDN ? DNS_MAXDN : dnsiz);
-  unsigned char *p;
+int dns_a6todn(const struct in6_addr *addr, dnscc_t *tdn,
+               dnsc_t *dn, unsigned dnsiz) {
+  dnsc_t *dne = dn + (dnsiz > DNS_MAXDN ? DNS_MAXDN : dnsiz);
+  dnsc_t *p;
   unsigned l;
   p = dns_a6todn_(addr, dn, dne);
   if (!p) return 0;
@@ -239,8 +236,8 @@ int dns_a6todn(const struct in6_addr *addr, const unsigned char *tdn,
 }
 
 int dns_a6ptodn(const struct in6_addr *addr, const char *tname,
-                unsigned char *dn, unsigned dnsiz) {
-  unsigned char *p;
+                dnsc_t *dn, unsigned dnsiz) {
+  dnsc_t *p;
   int r;
   if (!tname)
     return dns_a6todn(addr, NULL, dn, dnsiz);
@@ -253,9 +250,9 @@ int dns_a6ptodn(const struct in6_addr *addr, const char *tname,
 /* return size of buffer required to convert the dn into asciiz string.
  * Keep in sync with dns_dntop() below.
  */
-unsigned dns_dntop_size(const unsigned char *dn) {
-  unsigned size = 0;			/* the size reqd */
-  const unsigned char *le;		/* label end */
+unsigned dns_dntop_size(dnscc_t *dn) {
+  unsigned size = 0;		/* the size reqd */
+  dnscc_t *le;			/* label end */
 
   while(*dn) {
     /* *dn is the length of the next label, non-zero */
@@ -290,10 +287,10 @@ unsigned dns_dntop_size(const unsigned char *dn) {
 /* Convert the dn into asciiz string.
  * Keep in sync with dns_dntop_size() above.
  */
-int dns_dntop(const unsigned char *dn, char *name, unsigned namesiz) {
+int dns_dntop(dnscc_t *dn, char *name, unsigned namesiz) {
   char *np = name;			/* current name ptr */
   char *const ne = name + namesiz;	/* end of name */
-  const unsigned char *le;		/* label end */
+  dnscc_t *le;		/* label end */
 
   while(*dn) {
     /* *dn is the length of the next label, non-zero */

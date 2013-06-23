@@ -1,5 +1,5 @@
 #! /usr/bin/make -rf
-# $Id: Makefile,v 1.33 2005/04/08 15:52:58 mjt Exp $
+# $Id: Makefile,v 1.36 2005/04/24 23:14:23 mjt Exp $
 # libudns Makefile
 #
 # Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -20,12 +20,12 @@
 # write to the Free Software Foundation, Inc., 59 Temple Place,
 # Suite 330, Boston, MA  02111-1307  USA
 
-VERS   = 0.0.6
+VERS   = 0.0.7
 SRCS   = udns_dn.c udns_dntosp.c udns_parse.c udns_resolver.c udns_misc.c \
 	udns_rr_a.c udns_rr_ptr.c udns_rr_mx.c udns_rr_txt.c udns_bl.c \
 	udns_codes.c
 USRCS  = dnsget.c rblcheck.c ex-rdns.c
-DIST   = COPYING.LGPL udns.h udns.3 $(SRCS) $(USRCS) \
+DIST   = COPYING.LGPL udns.h udns.3 dnsget.1 rblcheck.1 $(SRCS) $(USRCS) \
 	Makefile TODO
 
 OBJS   = $(SRCS:.c=.o) $(GEN:.c=.o)

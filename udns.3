@@ -1,4 +1,4 @@
-.\" $Id: udns.3,v 1.20 2005/04/05 23:12:00 mjt Exp $
+.\" $Id: udns.3,v 1.24 2005/04/20 08:57:56 mjt Exp $
 .\" udns library manpage
 .\"
 .\" Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -33,7 +33,10 @@ extern struct dns_ctx \fBdns_defctx\fR;
 struct dns_ctx *\fIctx\fR;
 typedef void \fBdns_query_fn\fR(\fIctx\fR, void *\fIresult\fR, void *\fIdata\fR);
 typedef int
-\fBdns_parse_fn\fR(const unsigned char *\fIpkt\fR, const unsigned char \fIpkte\fR,
+\fBdns_parse_fn\fR(const unsigned char *\fIqnd\fR,
+       const unsigned char *\fIpkt\fR,
+       const unsigned char *\fIcur\fR,
+       const unsigned char *\fIend\fR,
        void **\fIresultp\fR);
 
 \fBcc\fR ... -l\fBudns\fR
@@ -50,7 +53,7 @@ and asyncronously, with application-supplied event loop.
 While DNS works with both TCP and UDP, performing UDP query first and
 if the result does not fit in UDP buffer (512 bytes max for original
 DNS protocol), retrying the query over TCP, the library uses UDP only,
-but uses EDNS0 (RFCxxx) extensions which allows larger UDP buffers.
+but uses EDNS0 (RFC2671) extensions which allows larger UDP buffers.
 
 .PP
 The library uses single UDP socket to perform all operations even when
@@ -318,8 +321,8 @@ when it is not 0, it should contain current time as returned by
 
 .PP
 .nf
-typedef int \fBdns_utm_fn\fR(void *\fIarg\fR, struct dns_query *\fIq\fR, int \fItimeout\fR)
-void \fBdns_set_cbck\fR(\fIctx\fR, dns_utm_fn *\fIutmfn\fR, void *\fIarg\fR)
+typedef void \fBdns_utm_fn\fR(\fIctx\fR, int \fItimeout\fR, void *\fIdata\fR)
+void \fBdns_set_cbck\fR(\fIctx\fR, dns_utm_fn *\fIutmfn\fR, void *\fIdata\fR)
 .fi
 .RS
 An application may use custom callback-based I/O multiplexing mechanism.
@@ -333,25 +336,23 @@ assotiate a pointer to a routine that will perform necessary work for
 (de)registering timer events with a given resolver context, and
 udns will call that routine at appropriate times.  Prototype of
 such a routine is shown by \fBdns_utm_fn\fR typedef above.  Libudns
-assotiates timers with queue structure only, and there may be only
-one active timer for any given queue structure.  To register timer
-event, udns will call the routine giving it the query structure
-in question and non-zero \fItimeout\fR argument.  When a timer is
-not needed anymore, udns de-registers it by calling the same
-routine with zero \fItimeout\fR.  When a timer expires, an application
-should de-register timer event and call \fBdns_tmevent\fR() routine
-with the query structure as an argument.
-Other, non-callback timer usage is provided too, see below.
-.RE
-
+assotiates single timer with resolver context.  User-supplied \fIutmfn\fR
+routine will be called by the library with the following arguments:
+.IP "\fIctx\fR == NULL"
+delete user timer, at context free time or when an application changes
+user timer request routine using \fBdns_set_cbck\fR();
+.IP "\fIctx\fR != NULL, \fItimeout\fR < 0"
+don't fire timer anymore, when there are no active requests;
+.IP "\fIctx\fR != NULL, \fItimeout\fR == 0"
+fire timer at the next possibility, but not immediately;
+.IP "\fIctx\fR != NULL, \fItimeout\fR > 0"
+fire timer after \fItimeout\fR seconds after now.
 .PP
-.nf
-void \fBdns_tmevent\fR(struct dns_query *\fIq\fR, time_t \fInow\fR);
-.fi
-.RS
-routine which should be called from event-driven application
-event loop when a timer set using routine set up by
-\fBdns_set_cbck\fR() expires.
+The \fIdata\fR argument passed to the routine will be the same
+as passed to \fBdns_set_cbck\fR().
+.PP
+When a timer expires, an application should call \fBdns_tmeouts\fR()
+routine (see below).  Non-callback timer usage is provided too.
 .RE
 
 .PP
@@ -397,9 +398,28 @@ instead of this void pointer to raw DNS packet data.
 Result parsing routine looks like this:
 .nf
 typedef int
-\fBdns_parse_fn\fR(const unsigned char *\fIpkt\fR, const unsigned char *\fIpkte\fR,
+\fBdns_parse_fn\fR(const unsigned char *\fIqdn\fR,
+      const unsigned char *\fIpkt\fR,
+      const unsigned char *\fIcur\fR,
+      const unsigned char *\fIend\fR,
       void **\fIresultp\fR);
 .fi
+When called by the library, the arguments are as follows:
+\fIpkt\fR points to the start of the packet received;
+\fIend\fR points past the end of the packet received;
+\fIcur\fR points past the query DN in the query section of the
+packet;
+\fIqdn\fR points to the original query DN.
+The routine should allocate a single buffer to hold the result,
+parse the reply filling in the buffer, and return the buffer
+using \fIresultp\fR argument.  It returns 0 in case of error,
+or udns error code (\fBDNS_E_\fIXXX\fR constants) in case of
+error.
+Note that by the time when the parse routine is called by the
+library, packet is already verified to be a reply to the
+original query, by matching query DN, query class and query type.
+
+.PP
 Type-specific query inteface supplies necessary parsing routines
 automatically.
 
@@ -460,18 +480,17 @@ as shown above.
 struct dns_query *
 \fBdns_submit_dn\fR(\fIctx\fR,
      const unsigned char *\fIdn\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR,
-     \fIparse\fR, \fIcbck\fR, \fIdata\fR, \fInow\fR)
+     \fIparse\fR, \fIcbck\fR, \fIdata\fR)
 struct dns_query *
 \fBdns_submit_p\fR(\fIctx\fR,
      const char *\fIname\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR,
-     \fIparse\fR, \fIcbck\fR, \fIdata\fR, \fInow\fR)
+     \fIparse\fR, \fIcbck\fR, \fIdata\fR)
    enum dns_class \fIqcls\fR;
    enum dns_type \fIqtyp\fR;
    int \fIflags\fR;
    dns_parse_fn *\fIparse\fR;
    dns_query_fn *\fIcbck\fR;
    void *\fIdata\fR;
-   time_t \fInow\fR;
 .fi
 .RS
 submit a query for processing for the given resolver context \fIctx\fR.
@@ -480,10 +499,8 @@ DN format (\fIdn\fR) or asciiz string (\fIname\fR).  The query will be
 performed for the given domain name, with type \fIqtyp\fR in class \fIqcls\fR,
 using option bits in \fIflags\fR, using RR parsing routine pointed by
 \fIparse\fR if not-NULL, and upon completion, \fIcbck\fR function will
-be called with the \fIdata\fR argument.  The \fInow\fR argument specifies
-current time as returned by \fBtime\fR() routine, used to minimize number
-of system calls performed by an application; if \fInow\fR is 0, the routine
-will obtain current time by it's own.  In case of successeful query submission,
+be called with the \fIdata\fR argument.
+In case of successeful query submission,
 the routine return pointer to internal query structure which may be treated
 as an identifier of the query as used by the library, and may be used as an
 argument for \fBdns_cancel\fR() routine.  In case of error, NULL will be
@@ -500,7 +517,6 @@ void *\fBdns_resolve_dn\fR(\fIctx\fR,
      const unsigned char *\fIdn\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR, \fIparse\fR);
 void *\fBdns_resolve_p\fR(\fIctx\fR,
      const char *\fIname\fR, \fIqcls\fR, \fIqtyp\fR, \fIflags\fR, \fIparse\fR)
-     \fIparse\fR, \fIcbck\fR, \fIdata\fR, \fInow\fR)
    enum dns_class \fIqcls\fR;
    enum dns_type \fIqtyp\fR;
    int \fIflags\fR;
@@ -582,7 +598,7 @@ typedef void
 dns_parse_fn \fBdns_parse_a4\fB;
 struct dns_query *
 \fBdns_submit_a4\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR,
-   dns_query_a4_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+   dns_query_a4_fn *\fIcbck\fR, \fIdata\fR);
 struct dns_rr_a4 *
 \fBdns_resolve_a4\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR);
 .fi
@@ -615,7 +631,7 @@ typedef void
 dns_parse_fn \fBdns_parse_a6\fB;
 struct dns_query *
 \fBdns_submit_a6\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR,
-   dns_query_a6_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+   dns_query_a6_fn *\fIcbck\fR, \fIdata\fR);
 struct dns_rr_a6 *
 \fBdns_resolve_a6\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR);
 .fi
@@ -648,12 +664,12 @@ typedef void
 dns_parse_fn \fBdns_parse_ptr\fB;
 struct dns_query *
 \fBdns_submit_a4ptr\fB(\fIctx\fR, const struct in_addr *\fBaddr\fR,
-   dns_query_ptr_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+   dns_query_ptr_fn *\fIcbck\fR, \fIdata\fR);
 struct dns_rr_ptr *
 \fBdns_resolve_a4ptr\fB(\fIctx\fR, const struct in_addr *\fBaddr\fR);
 struct dns_query *
 \fBdns_submit_a6ptr\fB(\fIctx\fR, const struct in6_addr *\fBaddr\fR,
-   dns_query_ptr_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+   dns_query_ptr_fn *\fIcbck\fR, \fIdata\fR);
 struct dns_rr_ptr *
 \fBdns_resolve_a6ptr\fB(\fIctx\fR, const struct in6_addr *\fBaddr\fR);
 .fi
@@ -689,7 +705,7 @@ typedef void
 dns_parse_fn \fBdns_parse_mx\fB;
 struct dns_query *
 \fBdns_submit_mx\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR,
-   dns_query_mx_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+   dns_query_mx_fn *\fIcbck\fR, \fIdata\fR);
 struct dns_rr_mx *
 \fBdns_resolve_mx\fB(\fIctx\fR, const char \fIname\fR, int \fIflags\fR);
 .fi
@@ -726,7 +742,7 @@ typedef void
 dns_parse_fn \fBdns_parse_txt\fB;
 struct dns_query *
 \fBdns_submit_txt\fB(\fIctx\fR, const char \fIname\fR, enum dns_class \fIqcls\fR,
-   int \fIflags\fR, dns_query_txt_fn *\fIcbck\fR, \fIdata\fR, \fInow\fR);
+   int \fIflags\fR, dns_query_txt_fn *\fIcbck\fR, \fIdata\fR);
 struct dns_rr_txt *
 \fBdns_resolve_txt\fB(\fIctx\fR, const char \fIname\fR,
              enum dns_class \fIqcls\fR, int \fIflags\fR);
@@ -762,19 +778,19 @@ structure.  Note that IPv6 interface return IPv4 RRset.
 struct dns_query *
 \fBdns_submit_a4dnsbl\fR(\fIctx\fR,
   const struct in_addr *\fIaddr\fR, const char *\fIdnsbl\fR,
-  dns_query_a4_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+  dns_query_a4_fn *\fIcbck\fR, void *\fIdata\fR);
 struct dns_query *
 \fBdns_submit_a4dnsbl_txt\fR(\fIctx\fR,
   const struct in_addr *\fIaddr\fR, const char *\fIdnsbl\fR,
-  dns_query_txt_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+  dns_query_txt_fn *\fIcbck\fR, void *\fIdata\fR);
 struct dns_query *
 \fBdns_submit_a6dnsbl\fR(\fIctx\fR,
   const struct in6_addr *\fIaddr\fR, const char *\fIdnsbl\fR,
-  dns_query_a4_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+  dns_query_a4_fn *\fIcbck\fR, void *\fIdata\fR);
 struct dns_query *
 \fBdns_submit_a6dnsbl_txt\fR(\fIctx\fR,
   const struct in6_addr *\fIaddr\fR, const char *\fIdnsbl\fR,
-  dns_query_txt_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+  dns_query_txt_fn *\fIcbck\fR, void *\fIdata\fR);
 struct dns_rr_a4 *\fBdns_resolve_a4dnsbl\fR(\fIctx\fR,
   const struct in_addr *\fIaddr\fR, const char *\fIdnsbl\fR)
 struct dns_rr_txt *\fBdns_resolve_a4dnsbl_txt\fR(\fIctx\fR,
@@ -796,10 +812,10 @@ parameter is a domain name.
 .nf
 struct dns_query *
 \fBdns_submit_rhsbl\fR(\fIctx\fR, const char *\fIname\fR, const char *\fIrhsbl\fR,
-  dns_query_a4_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+  dns_query_a4_fn *\fIcbck\fR, void *\fIdata\fR);
 struct dns_query *
 \fBdns_submit_rhsbl_txt\fR(\fIctx\fR, const char *\fIname\fR, const char *\fIrhsbl\fR,
-  dns_query_txt_fn *\fIcbck\fR, void *\fIdata\fR, time_t \fInow\fR);
+  dns_query_txt_fn *\fIcbck\fR, void *\fIdata\fR);
 struct dns_rr_a4 *
 \fBdns_resolve_rhsbl\fR(\fIctx\fR, const char *\fIname\fR, const char *\fIrhsbl\fR);
 struct dns_rr_txt *
@@ -1070,6 +1086,7 @@ struct \fBdns_parse\fR {
   const unsigned char *\fBdnsp_pkt\fR; /* pointer to the packet being parsed */
   const unsigned char *\fBdnsp_end\fR; /* end of the packet pointer */
   const unsigned char *\fBdnsp_cur\fR; /* current packet positionn */
+  const unsigned char *\fBdnsp_ans\fR; /* pointer to the answer section */
   int \fBdnsp_rrl\fR;                  /* number of RRs left */
   int \fBdnsp_nrr\fR;                  /* number of relevant RRs seen so far */
   unsigned \fBdnsp_ttl\fR;             /* TTL value so far */
@@ -1090,15 +1107,25 @@ dnsp_qcls and dnsp_qtyp fields).
 .PP
 .nf
 int \fBdns_initparse\fR(struct dns_parse *\fIp\fR,
-  enum dns_class \fIqcls\fR, enum dns_type \fIqtyp\fR,
-  const unsigned char *\fIpkt\fR, const unsigned char *\fIend\fR)
+  const unsigned char *\fIqdn\fR,
+  const unsigned char *\fIpkt\fR,
+  const unsigned char *\fIcur\fR,
+  const unsigned char *\fIend\fR)
 .fi
 .RS
-initializes the RR parsing structure \fIp\fR.  The \fIp\fR->\fBdnsp_qdn\fR
-field is initialized to the DN in question section, \fIp\fR->\fBdnsp_rrl\fR
-is set to number of RRs in answer section, \fIp\fR->\fBdnsp_cur\fR is
-set to point to the first RR in answer section, and \fIp\fR->\fBdnsp_ttl\fR
-will be set to max TTL value, 0xffffffff.
+initializes the RR parsing structure \fIp\fR.  Arguments \fIpkt\fR, \fIcur\fR
+and \fIend\fR should describe the received packet: \fIpkt\fR is the start of
+the packet, \fIend\fR points to the next byte after the end of the packet,
+and \fIcur\fR points past the query DN in query section (to query class+type
+information).  And \fIqdn\fR points to the query DN.  This is the arguments
+passed to \fBdns_parse_fn\fR() routine. \fBdns_initparse\fR() initializes
+\fBdnsp_pkt\fR, \fBdnsp_end\fR and \fBdnsp_qdn\fR fields to the corresponding
+arguments, extracts and initializes \fBdnsp_qcls\fR and \fBdnsp_qtyp\fR
+fields to the values found at \fIcur\fR pointer, initializes
+\fBdnsp_cur\fR and \fBdnsp_ans\fR fields to be \fIcur\fR+4 (to the start of
+answer section), and initializes \fBdnsp_rrl\fR field to be number of entries
+in answer section. \fBdnsp_ttl\fR will be set to max TTL value, 0xffffffff,
+and \fBdnsp_nrr\fR to 0.
 .RE
 
 .PP
@@ -1128,7 +1155,7 @@ be the minimum TTL of all RRs found.
 
 .PP
 .nf
-void \fBdns_rewind\fR(struct dns_parse *\fIp\fR)
+void \fBdns_rewind\fR(struct dns_parse *\fIp\fR, const unsigned char *\fIqdn\fR)
 .fi
 .RS
 this routine "rewinds" the packet parse state structure to be at the

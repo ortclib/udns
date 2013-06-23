@@ -1,4 +1,4 @@
-/* $Id: udns_parse.c,v 1.12 2005/04/07 23:58:27 mjt Exp $
+/* $Id: udns_parse.c,v 1.13 2005/04/19 21:48:09 mjt Exp $
    raw DNS packet parsing routines
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -25,36 +25,33 @@
 #include <assert.h>
 #include "udns.h"
 
-const unsigned char *
-dns_skipdn(const unsigned char *cur, const unsigned char *pkte) {
+dnscc_t *dns_skipdn(dnscc_t *cur, dnscc_t *end) {
   unsigned c;
   for(;;) {
-    if (cur >= pkte)
+    if (cur >= end)
       return NULL;
     c = *cur++;
     if (!c)
       return cur;
     if (c & 192)		/* jump */
-      return cur + 1 >= pkte ? NULL : cur + 1;
+      return cur + 1 >= end ? NULL : cur + 1;
     cur += c;
   }
 }
 
 int
-dns_getdn(const unsigned char *pkt,
-          const unsigned char **curp,
-          const unsigned char *pkte,
-          register unsigned char *dn, unsigned dnsiz) {
+dns_getdn(dnscc_t *pkt, dnscc_t **cur, dnscc_t *end,
+          register dnsc_t *dn, unsigned dnsiz) {
   unsigned c;
-  const unsigned char *cp = *curp;	/* max jump position (jump only back) */
-  const unsigned char *pp = cp;		/* current packet pointer */
-  unsigned char *dp = dn;		/* current dn pointer */
-  unsigned char *const de		/* end of the DN */
+  dnscc_t *pp = *cur;		/* current packet pointer */
+  dnsc_t *dp = dn;		/* current dn pointer */
+  dnsc_t *const de		/* end of the DN dest */
        = dn + (dnsiz < DNS_MAXDN ? dnsiz : DNS_MAXDN);
-  const unsigned char *jump = NULL;	/* ptr after first jump if any */
+  dnscc_t *jump = NULL;		/* ptr after first jump if any */
+  unsigned loop = 100;		/* jump loop counter */
 
   for(;;) {		/* loop by labels */
-    if (pp >= pkte)		/* reached end of packet? */
+    if (pp >= end)		/* reached end of packet? */
       return -1;
     c = *pp++;			/* length of the label */
     if (!c) {			/* empty label: terminate */
@@ -62,22 +59,23 @@ dns_getdn(const unsigned char *pkt,
         goto noroom;
       *dp++ = 0;
       /* return next pos: either after the first jump or current */
-      *curp = jump ? jump : pp;
+      *cur = jump ? jump : pp;
       return dp - dn;
     }
     if (c & 192) {		/* jump */
-      if (pp >= pkte)		/* eop instead of jump pos */
-        return -1;
-      c = ((c & ~192) << 8) | *pp;	/* new pos */
-      if (c < DNS_HSIZE || pkt + c >= cp)
+      if (pp >= end)		/* eop instead of jump pos */
         return -1;
       if (!jump) jump = pp + 1;	/* remember first jump */
-      cp = pp = pkt + c;	/* don't allow to jump past previous jump */
+      else if (!--loop) return -1; /* too many jumps */
+      c = ((c & ~192) << 8) | *pp; /* new pos */
+      if (c < DNS_HSIZE)	/* don't allow jump into the header */
+        return -1;
+      pp = pkt + c;
       continue;
     }
     if (c > DNS_MAXLABEL)	/* too long label? */
       return -1;
-    if (pp + c > pkte)		/* label does not fit in packet? */
+    if (pp + c > end)		/* label does not fit in packet? */
       return -1;
     if (dp + c + 1 > de)	/* if enouth room for the label */
       goto noroom;
@@ -90,31 +88,27 @@ noroom:
   return dnsiz < DNS_MAXDN ? 0 : -1;
 }
 
-void dns_rewind(struct dns_parse *p) {
-  p->dnsp_qdn = dns_payload(p->dnsp_pkt);
-  p->dnsp_cur = p->dnsp_qdn + dns_dnlen(p->dnsp_qdn) + 4;
-  assert(p->dnsp_cur <= p->dnsp_end);
+void dns_rewind(struct dns_parse *p, dnscc_t *qdn) {
+  p->dnsp_qdn = qdn;
+  p->dnsp_cur = p->dnsp_ans;
   p->dnsp_rrl = dns_numan(p->dnsp_pkt);
   p->dnsp_ttl = 0xffffffffu;
   p->dnsp_nrr = 0;
 }
 
-int dns_initparse(struct dns_parse *p, int qcls, int qtyp,
-                  const unsigned char *pkt, const unsigned char *pkte) {
+void
+dns_initparse(struct dns_parse *p, dnscc_t *qdn,
+              dnscc_t *pkt, dnscc_t *cur, dnscc_t *end) {
   p->dnsp_pkt = pkt;
-  p->dnsp_end = pkte;
+  p->dnsp_end = end;
   p->dnsp_rrl = dns_numan(pkt);
-  p->dnsp_qdn = pkt = dns_payload(pkt);
-  pkt += dns_dnlen(pkt);
-  assert(pkt + 4 <= pkte);
-  if (qtyp != DNS_T_ANY) p->dnsp_qtyp = qtyp;
-  else if ((p->dnsp_qtyp = dns_get16(pkt+0)) == DNS_T_ANY) p->dnsp_qtyp = 0;
-  if (qcls != DNS_C_ANY) p->dnsp_qcls = qcls;
-  else if ((p->dnsp_qcls = dns_get16(pkt+2)) == DNS_C_ANY) p->dnsp_qcls = 0;
-  p->dnsp_cur = pkt + 4;
+  p->dnsp_qdn = qdn;
+  assert(cur + 4 <= end);
+  if ((p->dnsp_qtyp = dns_get16(cur+0)) == DNS_T_ANY) p->dnsp_qtyp = 0;
+  if ((p->dnsp_qcls = dns_get16(cur+2)) == DNS_C_ANY) p->dnsp_qcls = 0;
+  p->dnsp_cur = p->dnsp_ans = cur + 4;
   p->dnsp_ttl = 0xffffffffu;
   p->dnsp_nrr = 0;
-  return 1;
 }
 
 int dns_nextrr(struct dns_parse *p, struct dns_rr *rr) {
@@ -144,7 +138,7 @@ int dns_nextrr(struct dns_parse *p, struct dns_rr *rr) {
       return 1;
     }
     if (p->dnsp_qdn && rr->dnsrr_typ == DNS_T_CNAME && !p->dnsp_nrr) {
-      if (dns_getdn(p->dnsp_pkt, &rr->dnsrr_dptr, rr->dnsrr_dend,
+      if (dns_getdn(p->dnsp_pkt, &rr->dnsrr_dptr, p->dnsp_end,
                     p->dnsp_dnbuf, sizeof(p->dnsp_dnbuf)) <= 0 ||
           rr->dnsrr_dptr != rr->dnsrr_dend)
         return -1;
@@ -154,12 +148,6 @@ int dns_nextrr(struct dns_parse *p, struct dns_rr *rr) {
   }
   p->dnsp_cur = cur;
   return 0;
-}
-
-int dns_firstrr(struct dns_parse *p, struct dns_rr *rr, int qcls, int qtyp,
-                const unsigned char *pkt, const unsigned char *pkte) {
-  dns_initparse(p, qcls, qtyp, pkt, pkte);
-  return dns_nextrr(p, rr);
 }
 
 int dns_stdrr_size(const struct dns_parse *p) {
