@@ -1,8 +1,9 @@
-/* $Id: udns_rr_mx.c,v 1.9 2004/06/30 20:44:48 mjt Exp $
+/* $Id: udns_rr_mx.c,v 1.10 2004/07/02 21:52:04 mjt Exp $
  * parse/query MX IN records
  */
 
 #include <string.h>
+#include <stdlib.h>
 #include "udns.h"
 
 int
@@ -12,46 +13,42 @@ dns_parse_mx(const unsigned char *pkt, const unsigned char *pkte,
   struct dns_parse p;
   struct dns_rr rr;
   const unsigned char *cur;
-  int r, l, c;
+  int r, l;
   char *sp;
   unsigned char mx[DNS_MAXDN];
 
   /* first, validate the answer and count size of the result */
-  l = c = 0;
-  for(r = dns_firstrr(&p, &rr, DNS_C_IN, DNS_T_MX, pkt, pkte);
-      r > 0; r = dns_nextrr(&p, &rr)) {
+  l = 0;
+  dns_initparse(&p, DNS_C_ANY, DNS_T_MX, pkt, pkte);
+  while((r = dns_nextrr(&p, &rr)) > 0) {
     cur = rr.dnsrr_dptr + 2;
     r = dns_getdn(pkt, &cur, rr.dnsrr_dend, mx, sizeof(mx));
     if (r <= 0 || cur != rr.dnsrr_dend)
       return DNS_E_PROTOCOL;
     l += dns_dntop_size(mx);
-    ++c;
   }
   if (r < 0)
     return DNS_E_PROTOCOL;
-  if (!c)
+  if (!p.dnsp_nrr)
     return DNS_E_NODATA;
 
   /* next, allocate and set up result */
   l += dns_stdrr_size(&p);
-  ret = malloc(sizeof(*ret) + sizeof(struct dns_mx) * c + l);
+  ret = malloc(sizeof(*ret) + sizeof(struct dns_mx) * p.dnsp_nrr + l);
   if (!ret)
     return DNS_E_NOMEM;
-  ret->dnsmx_nrr = c;
+  ret->dnsmx_nrr = p.dnsp_nrr;
   ret->dnsmx_mx = (struct dns_mx *)(ret+1);
 
   /* and 3rd, fill in result, finally */
-  sp = (char*)(ret->dnsmx_mx + c);
-  c = 0;
-  for(r = dns_firstrr(&p, &rr, DNS_C_IN, DNS_T_MX, pkt, pkte);
-      r > 0; r = dns_nextrr(&p, &rr)) {
-    ret->dnsmx_mx[c].name = sp;
+  sp = (char*)(ret->dnsmx_mx + p.dnsp_nrr);
+  for (dns_rewind(&p), r = 0; dns_nextrr(&p, &rr); ++r) {
+    ret->dnsmx_mx[r].name = sp;
     cur = rr.dnsrr_dptr;
-    ret->dnsmx_mx[c].priority = dns_get16(cur);
+    ret->dnsmx_mx[r].priority = dns_get16(cur);
     cur += 2;
     dns_getdn(pkt, &cur, pkte, mx, sizeof(mx));
     sp += dns_dntop(mx, sp, DNS_MAXNAME);
-    ++c;
   }
   dns_stdrr_finish((struct dns_rr_null *)ret, sp, &p);
   *result = ret;

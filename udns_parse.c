@@ -1,8 +1,9 @@
-/* $Id: udns_parse.c,v 1.9 2004/06/30 20:44:48 mjt Exp $
+/* $Id: udns_parse.c,v 1.10 2004/07/02 21:52:04 mjt Exp $
  * raw DNS packet parsing routines
  */
 
 #include <string.h>
+#include <assert.h>
 #include "udns.h"
 
 const unsigned char *
@@ -71,23 +72,37 @@ noroom:
   return dnsiz < DNS_MAXDN ? 0 : -1;
 }
 
+void dns_rewind(struct dns_parse *p) {
+  p->dnsp_qdn = dns_payload(p->dnsp_pkt);
+  p->dnsp_cur = p->dnsp_qdn + dns_dnlen(p->dnsp_qdn) + 4;
+  assert(p->dnsp_cur <= p->dnsp_end);
+  p->dnsp_rrl = dns_numan(p->dnsp_pkt);
+  p->dnsp_ttl = 0xffffffffu;
+  p->dnsp_nrr = 0;
+}
+
 int dns_initparse(struct dns_parse *p, int qcls, int qtyp,
                   const unsigned char *pkt, const unsigned char *pkte) {
   p->dnsp_pkt = pkt;
   p->dnsp_end = pkte;
-  p->dnsp_cur = dns_payload(pkt) + dns_dnlen(dns_payload(pkt)) + 4;
-  p->dnsp_nrr = dns_numan(pkt);
+  p->dnsp_rrl = dns_numan(pkt);
+  p->dnsp_qdn = pkt = dns_payload(pkt);
+  pkt += dns_dnlen(pkt);
+  assert(pkt + 4 <= pkte);
+  if (qtyp != DNS_T_ANY) p->dnsp_qtyp = qtyp;
+  else if ((p->dnsp_qtyp = dns_get16(pkt+0)) == DNS_T_ANY) p->dnsp_qtyp = 0;
+  if (qcls != DNS_C_ANY) p->dnsp_qcls = qcls;
+  else if ((p->dnsp_qcls = dns_get16(pkt+2)) == DNS_C_ANY) p->dnsp_qcls = 0;
+  p->dnsp_cur = pkt + 4;
   p->dnsp_ttl = 0xffffffffu;
-  p->dnsp_qdn = dns_payload(pkt);
-  p->dnsp_qcls = qcls;
-  p->dnsp_qtyp = qtyp;
+  p->dnsp_nrr = 0;
   return 1;
 }
 
 int dns_nextrr(struct dns_parse *p, struct dns_rr *rr) {
   const unsigned char *cur = p->dnsp_cur;
-  while(p->dnsp_nrr > 0) {
-    --p->dnsp_nrr;
+  while(p->dnsp_rrl > 0) {
+    --p->dnsp_rrl;
     if (dns_getdn(p->dnsp_pkt, &cur, p->dnsp_end,
                   rr->dnsrr_dn, sizeof(rr->dnsrr_dn)) <= 0)
       return -1;
@@ -106,10 +121,11 @@ int dns_nextrr(struct dns_parse *p, struct dns_rr *rr) {
     if ((!p->dnsp_qcls || p->dnsp_qcls == rr->dnsrr_cls) &&
         (!p->dnsp_qtyp || p->dnsp_qtyp == rr->dnsrr_typ)) {
       p->dnsp_cur = cur;
+      ++p->dnsp_nrr;
       if (p->dnsp_ttl > rr->dnsrr_ttl) p->dnsp_ttl = rr->dnsrr_ttl;
       return 1;
     }
-    if (p->dnsp_qdn && rr->dnsrr_typ == DNS_T_CNAME) {
+    if (p->dnsp_qdn && rr->dnsrr_typ == DNS_T_CNAME && !p->dnsp_nrr) {
       if (dns_getdn(p->dnsp_pkt, &rr->dnsrr_dptr, rr->dnsrr_dend,
                     p->dnsp_dnbuf, sizeof(p->dnsp_dnbuf)) <= 0 ||
           rr->dnsrr_dptr != rr->dnsrr_dend)

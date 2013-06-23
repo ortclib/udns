@@ -1,4 +1,4 @@
-.\" $Id: udns.3,v 1.13 2004/06/30 20:44:48 mjt Exp $
+.\" $Id: udns.3,v 1.14 2004/07/02 21:52:04 mjt Exp $
 .\" udns library manpage
 .\"
 .TH udns 3 "Jun 2004" "Library Functions"
@@ -1047,7 +1047,8 @@ struct \fBdns_parse\fR {
   const unsigned char *\fBdnsp_pkt\fR; /* pointer to the packet being parsed */
   const unsigned char *\fBdnsp_end\fR; /* end of the packet pointer */
   const unsigned char *\fBdnsp_cur\fR; /* current packet positionn */
-  int \fBdnsp_nrr\fR;                  /* number of RRs left */
+  int \fBdnsp_rrl\fR;                  /* number of RRs left */
+  int \fBdnsp_nrr\fR;                  /* number of relevant RRs seen so far */
   unsigned \fBdnsp_ttl\fR;             /* TTL value so far */
   const unsigned char *\fBdnsp_qdn\fR; /* the domain of interest or NULL */
   enum dns_class \fBdnsp_qcls\fR;      /* class of interest or 0 for any */
@@ -1071,7 +1072,7 @@ int \fBdns_initparse\fR(struct dns_parse *\fIp\fR,
 .fi
 .RS
 initializes the RR parsing structure \fIp\fR.  The \fIp\fR->\fBdnsp_qdn\fR
-field is initialized to the DN in question section, \fIp\fR->\fBdnsp_nrr\fR
+field is initialized to the DN in question section, \fIp\fR->\fBdnsp_rrl\fR
 is set to number of RRs in answer section, \fIp\fR->\fBdnsp_cur\fR is
 set to point to the first RR in answer section, and \fIp\fR->\fBdnsp_ttl\fR
 will be set to max TTL value, 0xffffffff.
@@ -1092,7 +1093,7 @@ the field isn't 0 (or NULL for dnsp_qdn), only RRs with corresponding
 characteristics are acceptable.  Additionally, when dnsp_qdn is non\-NULL,
 \fBdns_nextrr\fR() performs automatic CNAME expansion.
 Routine will return positive value on success, 0 in case it reached the end
-of current section in the packet (\fIp\fR->\fBdnsp_nrr\fR is zero), or
+of current section in the packet (\fIp\fR->\fBdnsp_rrl\fR is zero), or
 negative value if next RR can not be decoded (packet format is invalid).
 The routine updates \fIp\fR->\fBdnsp_qdn\fR automatically when this
 field is non\-NULL and it encounters appropriate CNAME RRs (saving CNAME
@@ -1104,13 +1105,14 @@ be the minimum TTL of all RRs found.
 
 .PP
 .nf
-int \fBdns_firstrr\fR(struct dns_parse *\fIp\fR, struct dns_rr *\fIrr\fR,
-  enum dns_class \fIqcls\fR, enum dns_type \fIqtyp\fR,
-  const unsigned char *\fIpkt\fR, const unsigned char *\fIend\fR);
+void \fBdns_rewind\fR(struct dns_parse *\fIp\fR)
 .fi
 .RS
-a shortcut for \fBdns_initparse\fR() followed by \fBdns_nextrr\fR(), convinient
-for usage in for\-loops.
+this routine "rewinds" the packet parse state structure to be at the
+same state as after a call to \fBdns_initparse\fR(), i.e. reposition
+the parse structure \fIp\fR to the start of answer section and
+initialize \fIp\fR->\fBdnsp_rrl\fR to the number of entries in
+answer section.
 .RE
 
 .PP

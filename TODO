@@ -1,4 +1,4 @@
-$Id: TODO,v 1.4 2004/06/30 20:16:08 mjt Exp $
+$Id: TODO,v 1.6 2004/07/01 10:50:03 mjt Exp $
 
 The following is mostly an internal, not user-visible stuff.
 
@@ -39,7 +39,21 @@ The following is mostly an internal, not user-visible stuff.
 * dns_init(do_open) - make the parameter opposite, aka
   dns_init(skip_open) ?
 
-* umplement /etc/hosts lookup too, ala [c-]ares??
+* check the error value returned by recvfrom() and
+  sendto() and determine which errors to ignore.
+
+* maybe merge dns_timeouts() and dns_ioevent(), to have
+  only one entry point for everything?  For traditional
+  select-loop-based eventloop it may be easier, but for
+  callback-driven event loops the two should be separate.
+  Provide an option, or a single dns_events() entry point
+  for select-loop approach, or just call dns_ioevent()
+  from within dns_timeouts() (probably after renaming
+  it to be dns_events()) ?
+
+* implement /etc/hosts lookup too, ala [c-]ares??
+
+* sortlist support?
 
 * windows port?  Oh no please!..  At least, I can't do it myself
   because of the lack of platform.

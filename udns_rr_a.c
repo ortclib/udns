@@ -1,4 +1,4 @@
-/* $Id: udns_rr_a.c,v 1.8 2004/06/30 20:44:48 mjt Exp $
+/* $Id: udns_rr_a.c,v 1.10 2004/07/02 21:52:04 mjt Exp $
  * parse/query A/AAAA IN records
  */
 
@@ -12,10 +12,7 @@
 
 /* this structure should match dns_rr_a[46] */
 struct dns_rr_a {
-  char *dnsa_qname;
-  char *dnsa_cname;
-  unsigned dnsa_ttl;
-  int dnsa_nrr;
+  dns_rr_common(dnsa);
   unsigned char *dnsa_addr;
 };
 
@@ -26,36 +23,31 @@ dns_parse_a(int qtyp, unsigned size,
   struct dns_rr_a *ret;
   struct dns_parse p;
   struct dns_rr rr;
-  int r, c;
+  int r;
 
   /* first, validate and count number of addresses */
-  c = 0;
-  for (r = dns_firstrr(&p, &rr, DNS_C_IN, qtyp, pkt, pkte);
-       r > 0; r = dns_nextrr(&p, &rr)) {
+  dns_initparse(&p, DNS_C_IN, qtyp, pkt, pkte);
+  while((r = dns_nextrr(&p, &rr)) > 0)
     if (rr.dnsrr_dsz != size)
       return DNS_E_PROTOCOL;
-    ++c;
-  }
   if (r < 0)
     return DNS_E_PROTOCOL;
-  else if (!c)
+  else if (!p.dnsp_nrr)
     return DNS_E_NODATA;
 
-  ret = malloc(sizeof(*ret) + size * c + dns_stdrr_size(&p));
+  ret = malloc(sizeof(*ret) + size * p.dnsp_nrr + dns_stdrr_size(&p));
   if (!ret)
     return DNS_E_NOMEM;
 
-  ret->dnsa_nrr = c;
+  ret->dnsa_nrr = p.dnsp_nrr;
   ret->dnsa_addr = (unsigned char*)(ret+1);
 
   /* copy the RRs */
-  c = 0;
-  for (r = dns_firstrr(&p, &rr, DNS_C_IN, DNS_T_A, pkt, pkte);
-       r > 0; r = dns_nextrr(&p, &rr))
-    memcpy(ret->dnsa_addr + size * c++, rr.dnsrr_dptr, size);
+  for (dns_rewind(&p), r = 0; dns_nextrr(&p, &rr); ++r)
+    memcpy(ret->dnsa_addr + size * r, rr.dnsrr_dptr, size);
 
-  dns_stdrr_finish((struct dns_rr_null*)ret,
-                   (char *)(ret->dnsa_addr + size * c), &p);
+  dns_stdrr_finish((struct dns_rr_null *)ret,
+                   (char *)(ret->dnsa_addr + size * p.dnsp_nrr), &p);
   *result = ret;
   return 0;
 }

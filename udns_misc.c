@@ -1,4 +1,4 @@
-/* $Id: udns_misc.c,v 1.4 2004/06/30 13:41:57 mjt Exp $
+/* $Id: udns_misc.c,v 1.5 2004/07/02 00:14:48 mjt Exp $
  */
 
 #include "udns.h"
@@ -17,7 +17,7 @@ const char *dns_strerror(int err) {
   switch(err) {
   case DNS_E_TEMPFAIL:	return "temporary failure in name resolution";
   case DNS_E_PROTOCOL:	return "protocol error";
-  case DNS_E_NXDOMAIN:	return "domain name does not exists";
+  case DNS_E_NXDOMAIN:	return "domain name does not exist";
   case DNS_E_NODATA:	return "valid domain but no data of requested type";
   case DNS_E_NOMEM:	return "out of memory";
   case DNS_E_BADQUERY:	return "malformed query";

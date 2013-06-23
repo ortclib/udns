@@ -1,4 +1,4 @@
-/* $Id: udns_rr_ptr.c,v 1.9 2004/06/30 20:44:48 mjt Exp $
+/* $Id: udns_rr_ptr.c,v 1.10 2004/07/02 13:00:08 mjt Exp $
  * parse/query PTR records
  */
 
@@ -50,7 +50,7 @@ dns_parse_ptr(const unsigned char *pkt, const unsigned char *pkte,
     sp += dns_dntop(ptr, sp, DNS_MAXNAME);
     ++c;
   }
-  dns_stdrr_finish((struct dns_rr_null*)ret, sp, &p);
+  dns_stdrr_finish((struct dns_rr_null *)ret, sp, &p);
   *result = ret;
   return 0;
 }

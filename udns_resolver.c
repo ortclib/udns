@@ -1,4 +1,4 @@
-/* $Id: udns_resolver.c,v 1.13 2004/06/30 20:32:07 mjt Exp $
+/* $Id: udns_resolver.c,v 1.15 2004/07/02 00:14:29 mjt Exp $
  * resolver stuff (main module)
  */
 
@@ -49,6 +49,7 @@ struct dns_query {
 };
 
 struct dns_ctx {		/* resolver context */
+  /* settings */
   unsigned dnsc_flags;			/* various flags */
   unsigned dnsc_timeout;		/* timeout (base value) for queries */
 #define LIM_TIMEOUT	1,300
@@ -60,7 +61,6 @@ struct dns_ctx {		/* resolver context */
 #define LIM_PORT	1,65535
   unsigned dnsc_udpbuf;			/* size of UDP buffer */
 #define LIM_UDPBUF	DNS_MAXPACKET,65536
-  int dnsc_udpsock;			/* UDP socket */
   /* array of nameserver addresses */
   struct sockaddr_in dnsc_serv[DNS_MAXSERV];
   unsigned dnsc_nserv;			/* number of nameservers */
@@ -68,12 +68,13 @@ struct dns_ctx {		/* resolver context */
   unsigned char dnsc_srch[DNS_MAXSRCH][DNS_MAXDN];
   unsigned dnsc_nsrch;			/* number of srch[] */
 
-  unsigned short dnsc_nextid;		/* next queue ID to use */
-
   dns_utm_fn *dnsc_utmfn;		/* register/cancel timer events */
   void *dnsc_uctx;			/* data pointer passed to utmfn() */
   void (*dnsc_udbgfn)(const unsigned char *r, int l);
 
+  /* dynamic data */
+  unsigned short dnsc_nextid;		/* next queue ID to use */
+  int dnsc_udpsock;			/* UDP socket */
   struct dns_query *dnsc_qactive;	/* active query list */
   unsigned char *dnsc_pbuf;		/* packet buffer (udpbuf size) */
   int dnsc_qstatus;			/* last query status value */
@@ -296,10 +297,14 @@ int dns_init(int do_open) {
 struct dns_ctx *dns_new(const struct dns_ctx *ctx) {
   struct dns_ctx *n;
   SETCTXINITED(ctx);
-  n = calloc(sizeof(*n), 1);
+  n = malloc(sizeof(*n));
   if (!n)
     return NULL;
+  *n = *ctx;
   n->dnsc_udpsock = -1;
+  n->dnsc_qactive = NULL;
+  n->dnsc_pbuf = NULL;
+  n->dnsc_qstatus = 0;
   dns_firstid(n);
   return n;
 }
@@ -447,7 +452,6 @@ dns_search_next(struct dns_ctx *ctx, struct dns_query *q, int status) {
   unsigned char *p;
   unsigned l, sl;
 
-  assert(q->dnsq_next == 0);
   if (q->dnsq_flags & DNS_NOSRCH)
     return status;
   if (!q->dnsq_srchs)

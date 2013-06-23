@@ -1,4 +1,4 @@
-/* $Id: udns.h,v 1.16 2004/06/30 20:44:48 mjt Exp $
+/* $Id: udns.h,v 1.18 2004/07/02 21:52:04 mjt Exp $
  * header file for the dns library.
  */
 
@@ -268,7 +268,8 @@ struct dns_parse {	/* RR/packet parsing state */
   const unsigned char *dnsp_pkt;	/* start of the packet */
   const unsigned char *dnsp_end;	/* end of the packet */
   const unsigned char *dnsp_cur;	/* current packet position */
-  int dnsp_nrr;				/* number of RRs left to go */
+  int dnsp_rrl;				/* number of RRs left to go */
+  int dnsp_nrr;				/* RR count so far */
   unsigned dnsp_ttl;			/* TTL value so far */
   const unsigned char *dnsp_qdn;	/* the RR DN we're looking for */
   enum dns_class dnsp_qcls;		/* RR class we're looking for or 0 */
@@ -286,6 +287,7 @@ int dns_nextrr(struct dns_parse *p, struct dns_rr *rr);
 /* equivalent to dns_initparse() followed by dns_nextrr() */
 int dns_firstrr(struct dns_parse *p, struct dns_rr *rr, int qcls, int qtyp,
                 const unsigned char *pkt, const unsigned char *pkte);
+void dns_rewind(struct dns_parse *p);
 
 
 /**************************************************************************/
@@ -412,11 +414,14 @@ void *dns_resolve(struct dns_ctx *ctx, struct dns_query *q);
 
 /* Specific RR handlers */
 
+#define dns_rr_common(prefix)						\
+  char *prefix##_cname;		/* canonical name */			\
+  char *prefix##_qname;		/* original query name */		\
+  unsigned prefix##_ttl;	/* TTL value */				\
+  int prefix##_nrr		/* number of records */
+
 struct dns_rr_null {		/* NULL RRset, aka RRset template */
-  char *dnsn_qname;		/* original query name */
-  char *dnsn_cname;		/* canonical name */
-  unsigned dnsn_ttl;		/* TTL value */
-  int dnsn_nrr;			/* number of records */
+  dns_rr_common(dnsn);
 };
 
 int dns_stdrr_size(const struct dns_parse *p);
@@ -424,10 +429,7 @@ void *
 dns_stdrr_finish(struct dns_rr_null *ret, char *cp, const struct dns_parse *p);
 
 struct dns_rr_a4 {		/* the A RRset */
-  char *dnsa4_qname;		/* original query name */
-  char *dnsa4_cname;		/* canonical name */
-  unsigned dnsa4_ttl;		/* TTL value */
-  int dnsa4_nrr;		/* number of addresses */
+  dns_rr_common(dnsa4);
   struct in_addr *dnsa4_addr;	/* array of addresses, naddr elements */
 };
 
@@ -446,10 +448,7 @@ dns_resolve_a4(struct dns_ctx *ctx, const char *name, int flags);
 
 
 struct dns_rr_a6 {		/* the AAAA RRset */
-  char *dnsa6_qname;		/* original query name */
-  char *dnsa6_cname;		/* canonical name */
-  unsigned dnsa6_ttl;		/* TTL value */
-  int dnsa6_nrr;		/* number of addresses */
+  dns_rr_common(dnsa6);
   struct in6_addr *dnsa6_addr;	/* array of addresses, naddr elements */
 };
 
@@ -468,10 +467,7 @@ dns_resolve_a6(struct dns_ctx *ctx, const char *name, int flags);
 
 
 struct dns_rr_ptr {		/* the PTR RRset */
-  char *dnsptr_qname;		/* original query name */
-  char *dnsptr_cname;		/* canonical name */
-  unsigned dnsptr_ttl;		/* TTL value */
-  int dnsptr_nrr;		/* number of PTRs */
+  dns_rr_common(dnsptr);
   char **dnsptr_ptr;		/* array of PTRs */
 };
 
@@ -499,10 +495,7 @@ struct dns_mx {		/* single MX RR */
   char *name;		/* MX name */
 };
 struct dns_rr_mx {		/* the MX RRset */
-  char *dnsmx_qname;		/* original query name */
-  char *dnsmx_cname;		/* canonical name */
-  unsigned dnsmx_ttl;		/* TTL value */
-  int dnsmx_nrr;		/* number of MXes */
+  dns_rr_common(dnsmx);
   struct dns_mx *dnsmx_mx;	/* array of MXes */
 };
 dns_parse_fn dns_parse_mx;	/* MX RR parsing routine */
@@ -522,10 +515,7 @@ struct dns_txt {	/* single TXT record */
   unsigned char *txt;	/* pointer to text buffer. May contain nulls. */
 };
 struct dns_rr_txt {		/* the TXT RRset */
-  char *dnstxt_qname;		/* original query name */
-  char *dnstxt_cname;		/* canonical name */
-  unsigned dnstxt_ttl;		/* TTL value */
-  int dnstxt_nrr;		/* number of TXT records */
+  dns_rr_common(dnstxt);
   struct dns_txt *dnstxt_txt;	/* array of TXT records */
 };
 dns_parse_fn dns_parse_txt;	/* TXT RR parsing routine */
