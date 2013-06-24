@@ -1,4 +1,4 @@
-/* $Id: udns_parse.c,v 1.14 2005/09/12 10:55:21 mjt Exp $
+/* udns_parse.c
    raw DNS packet parsing routines
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>

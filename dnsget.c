@@ -1,4 +1,4 @@
-/* $Id: dnsget.c,v 1.35 2010-12-01 19:50:38 mjt Exp $
+/* dnsget.c
    simple host/dig-like application using UDNS library
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -336,6 +336,12 @@ printrr(const struct dns_parse *p, struct dns_rr *rr) {
     printb64(c, dend);
     break;
 
+  case DNS_T_SSHFP: /* algo(1), fp type(1), fp... */
+    if (dend < dptr + 3) goto xperr;
+    printf("%u %u ", dptr[0], dptr[1]); /* algo, fp type */
+    printhex(dptr + 2, dend);
+    break;
+
 #if 0	/* unused RR types? */
   case DNS_T_NSEC: /* nextDN bitmaps */
     c = dptr;
@@ -606,17 +612,22 @@ int main(int argc, char **argv) {
     ns[nns++] = optarg;
     break;
   case 'o':
-    if (dns_set_opts(NULL, optarg) != 0)
-      die(0, "invalid option string: `%s'", optarg);
+  case 'f': {
+    char *opt;
+    const char *const delim = " \t,;";
+    for(opt = strtok(optarg, delim); opt != NULL; opt = strtok(NULL, delim)) {
+      if (dns_set_opts(NULL, optarg) == 0)
+        ;
+      else if (strcmp(opt, "aa") == 0) flags |= DNS_AAONLY;
+      else if (strcmp(optarg, "nord") == 0) flags |= DNS_NORD;
+      else if (strcmp(optarg, "dnssec") == 0) flags |= DNS_SET_DO;
+      else if (strcmp(optarg, "do")     == 0) flags |= DNS_SET_DO;
+      else if (strcmp(optarg, "cd") == 0) flags |= DNS_SET_CD;
+      else
+        die(0, "invalid option: `%s'", opt);
+    }
     break;
-  case 'f':
-    if (strcmp(optarg, "aa") == 0) flags |= DNS_AAONLY;
-    else if (strcmp(optarg, "nord") == 0) flags |= DNS_NORD;
-    else if (strcmp(optarg, "dnssec") == 0) flags |= DNS_SET_DO;
-    else if (strcmp(optarg, "do")     == 0) flags |= DNS_SET_DO;
-    else if (strcmp(optarg, "cd") == 0) flags |= DNS_SET_CD;
-    else die(0, "invalid flag `%s'", optarg);
-    break;
+  }
   case 'h':
     printf(
 "%s: simple DNS query tool (using udns version %s)\n"
@@ -630,14 +641,17 @@ int main(int argc, char **argv) {
 " -a - equivalent to -t ANY -v\n"
 " -n ns - use given nameserver(s) instead of default\n"
 "  (may be specified multiple times)\n"
-" -o option:value - set resovler option (the same as setting $RES_OPTIONS):\n"
-"  timeout:sec  - initial query timeout\n"
-"  attempts:num - number of attempt to resovle a query\n"
-"  ndots:num    - if name has more than num dots, lookup it before search\n"
-"  port:num     - port number for queries instead of default 53\n"
-"  udpbuf:num   - size of UDP buffer (use EDNS0 if >512)\n"
-"  (may be specified more than once)\n"
-" -f aa|nord|dnssec|do|cd - set query flag (may be used more than once)\n"
+" -o opt,opt,... (comma- or space-separated list,\n"
+"                 may be specified more than once):\n"
+"  set resovler options (the same as setting $RES_OPTIONS):\n"
+"   timeout:sec  - initial query timeout\n"
+"   attempts:num - number of attempt to resovle a query\n"
+"   ndots:num    - if name has more than num dots, lookup it before search\n"
+"   port:num     - port number for queries instead of default 53\n"
+"   udpbuf:num   - size of UDP buffer (use EDNS0 if >512)\n"
+"  or query flags:\n"
+"   aa,nord,dnssec,do,cd - set query flag (auth-only, no recursion,\n"
+"     enable DNSSEC (DNSSEC Ok), check disabled)\n"
       , progname, dns_version(), progname);
     return 0;
   default:

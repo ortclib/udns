@@ -1,4 +1,4 @@
-/* $Id: udns_init.c,v 1.6 2007/01/08 00:41:38 mjt Exp $
+/* udns_init.c
    resolver initialisation stuff
 
    Copyright (C) 2006  Michael Tokarev <mjt@corpit.ru>

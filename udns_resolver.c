@@ -1,4 +1,4 @@
-/* $Id: udns_resolver.c,v 1.106 2010-12-02 09:49:16 mjt Exp $
+/* udns_resolver.c
    resolver stuff (main module)
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
@@ -308,18 +308,20 @@ int dns_init_install_back_resolver(struct dns_ctx *ctx) {
 
 int dns_set_opts(struct dns_ctx *ctx, const char *opts) {
   unsigned i, v;
+  int err = 0;
   SETCTXINACTIVE(ctx);
   for(;;) {
     while(ISSPACE(*opts)) ++opts;
     if (!*opts) break;
-    for(i = 0; i < sizeof(dns_opts)/sizeof(dns_opts[0]); ++i) {
+    for(i = 0; ; ++i) {
+      if (i >= sizeof(dns_opts)/sizeof(dns_opts[0])) { ++err; break; }
       v = strlen(dns_opts[i].name);
       if (strncmp(dns_opts[i].name, opts, v) != 0 ||
           (opts[v] != ':' && opts[v] != '='))
         continue;
       opts += v + 1;
       v = 0;
-      if (*opts < '0' || *opts > '9') break;
+      if (*opts < '0' || *opts > '9') { ++err; break; }
       do v = v * 10 + (*opts++ - '0');
       while (*opts >= '0' && *opts <= '9');
       if (v < dns_opts[i].min) v = dns_opts[i].min;
@@ -329,7 +331,7 @@ int dns_set_opts(struct dns_ctx *ctx, const char *opts) {
     }
     while(*opts && !ISSPACE(*opts)) ++opts;
   }
-  return 0;
+  return err;
 }
 
 int dns_set_opt(struct dns_ctx *ctx, enum dns_opt opt, int val) {

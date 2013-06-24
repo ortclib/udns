@@ -1,4 +1,4 @@
-/* $Id: udns_dn.c,v 1.8 2010-12-27 17:14:17 mjt Exp $
+/* udns_dn.c
    domain names manipulation routines
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>

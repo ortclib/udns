@@ -1,4 +1,4 @@
-/* $Id: rblcheck.c,v 1.14 2007/01/10 02:52:51 mjt Exp $
+/* rblcheck.c
    dnsbl (rbl) checker application
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>

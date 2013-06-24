@@ -1,4 +1,4 @@
-$Id: TODO,v 1.15 2010-12-27 17:15:33 mjt Exp $
+TODO
 
 The following is mostly an internal, not user-visible stuff.
 
@@ -57,9 +57,3 @@ The following is mostly an internal, not user-visible stuff.
 * implement /etc/hosts lookup too, ala [c-]ares??
 
 * sortlist support?
-
-* windows port?  Oh no please!..  At least, I can't do it myself
-  because of the lack of platform.
-  Ok ok, the Windows port is in progress.  Christian Prahauser
-  from cosy.sbg.ac.at is helping with that.
-  Other folks done some more work in this area.

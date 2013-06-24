@@ -1,5 +1,4 @@
-.\" $Id: dnsget.1,v 1.4 2010-12-01 19:50:38 mjt Exp $
-.\" dnsget manpage
+.\" dnsget.1: dnsget manpage
 .\"
 .\" Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
 .\" This file is part of UDNS library, an async DNS stub resolver.
@@ -32,9 +31,7 @@ dnsget \- DNS lookup utility
 .RB [\| \-t
 .IR type \|]
 .RB [\| \-o
-.IR option : value \]
-.RB [\| \-f
-.IR flag \]
+.IR opt , opt ,...]
 .IR name \|.\|.\|.
 
 .SH DESCRIPTION
@@ -129,11 +126,12 @@ and increasing verbosity level
 (planned)
 
 .TP
-\fB\-o \fIoption\fR:\fIvalue\fR
-Set resolver option \fIoption\fR to the value \fIvalue\fR
-(may be specified several times).  The same as setting
+\fB\-o \fIopt\fR,\fIopt\fR,...
+(may be specified several times).
+Set resolver options (in a form \fIoption\fR:\fIvalue\fR) as if they
+were set in
 .RB $ RES_OPTIONS
-environment variable.  The following options are recognized:
+environment variable, or set query flags:
 .RS
 .TP
 \fBtimeout\fR:\fIsec\fR
@@ -149,16 +147,20 @@ EDNS0 (RFC 2671) extensions will be used.
 .TP
 \fBport\fR:\fInum\fR
 Use given UDP port number \fInum\fR instead of the default port 53 (domain).
-.RE
-
 .TP
-\fB\-f \fIflag\fR
-Set resolver flag \fIflag\fR:
-\fBaa\fR \- set AA (auth only) bit;
-\fBnord\fR \- do not set RD (recursion desired) bit (set by default);
-\fBdnssec\fR or \fBdo\fR \- set DNSSEC OK (DO) flag (\fBdnsget\fR does not
-verify DNSSEC signatures, only displays them; this is set in EDNS RR);
-\fBcd\fR \- set CD (checking disabled) bit.
+\fBaa\fR
+set AA (auth only) query bit.
+.TP
+\fBnord\fR
+do not set RD (recursion desired) query bit (set by default).
+.TP
+\fBdnssec\fR or \fBdo\fR
+set DNSSEC OK (DO) query flag (\fBdnsget\fR does not verify DNSSEC signatures,
+only displays them; this is set in EDNS RR).
+.TP
+\fBcd\fR
+set CD (checking disabled) query bit.
+.RE
 
 .TP
 \fB\-n \fInameserver\fR

@@ -1,4 +1,4 @@
-/* $Id: udns_rr_ptr.c,v 1.15 2005/09/12 11:21:06 mjt Exp $
+/* udns_rr_ptr.c
    parse/query PTR records
 
    Copyright (C) 2005  Michael Tokarev <mjt@corpit.ru>
