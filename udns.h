@@ -21,9 +21,17 @@
 
  */
 
+#pragma once
+
 #ifndef UDNS_VERSION	/* include guard */
 
 #define UDNS_VERSION "0.1"
+
+#ifndef WINDOWS
+# ifdef _WIN32
+#  define WINDOWS
+# endif //_WIN32
+#endif //WINDOWS
 
 #ifdef WINDOWS
 # ifdef UDNS_DYNAMIC_LIBRARY
@@ -397,6 +405,9 @@ dns_add_serv(struct dns_ctx *ctx, const char *serv);
 /* add nameserver using struct sockaddr structure (with ports) */
 UDNS_API int
 dns_add_serv_s(struct dns_ctx *ctx, const struct sockaddr *sa);
+
+UDNS_API int
+dns_init_install_back_resolver(struct dns_ctx *ctx);
 
 /* add search list element for a resolver context (or reset it if srch==NULL) */
 UDNS_API int

@@ -89,6 +89,12 @@ struct dns_query {
   dnsc_t dnsq_dn[DNS_MAXDN+DNS_DNPAD];	/* the query DN +alignment */
 };
 
+#ifndef __linux__
+extern int dns_pton(int af, const char *src, void *dst) {
+  return inet_pton(af, src, dst);
+}
+#endif
+
 /* working with dns_query lists */
 
 static __inline void qlist_init(struct dns_qlink *list) {
@@ -286,6 +292,20 @@ int dns_add_serv_s(struct dns_ctx *ctx, const struct sockaddr *sa) {
   return ++ctx->dnsc_nserv;
 }
 
+int dns_init_install_back_resolver(struct dns_ctx *ctx) {
+  // http://code.google.com/speed/public-dns/docs/using.html
+  int res = 0;
+
+  SETCTXFRESH(ctx);
+  if (ctx->dnsc_nserv > 0)
+    return ctx->dnsc_nserv;
+  
+  res = dns_add_serv(ctx, "8.8.8.8");
+  if (res < 0)
+    return res;
+  return dns_add_serv(ctx, "8.8.4.4");
+}
+
 int dns_set_opts(struct dns_ctx *ctx, const char *opts) {
   unsigned i, v;
   SETCTXINACTIVE(ctx);
@@ -469,7 +489,7 @@ struct dns_ctx *dns_new(const struct dns_ctx *copy) {
   struct dns_ctx *ctx;
   SETCTXINITED(copy);
   dns_assert_ctx(copy);
-  ctx = malloc(sizeof(*ctx));
+  ctx = (struct dns_ctx*)malloc(sizeof(*ctx));
   if (!ctx)
     return NULL;
   *ctx = *copy;
@@ -581,7 +601,7 @@ int dns_open(struct dns_ctx *ctx) {
   }
 #endif	/* WINDOWS */
   /* allocate the packet buffer */
-  if ((ctx->dnsc_pbuf = malloc(ctx->dnsc_udpbuf)) == NULL) {
+  if ((ctx->dnsc_pbuf = (dnsc_t*)malloc(ctx->dnsc_udpbuf)) == NULL) {
     closesocket(sock);
     ctx->dnsc_qstatus = DNS_E_NOMEM;
     errno = ENOMEM;
@@ -814,7 +834,7 @@ dns_send_this(struct dns_ctx *ctx, struct dns_query *q,
 
   /* send the query */
   tries = 10;
-  while (sendto(ctx->dnsc_udpsock, (void*)ctx->dnsc_pbuf, qlen, 0,
+  while (sendto(ctx->dnsc_udpsock, (const char*)ctx->dnsc_pbuf, qlen, 0,
                 &ctx->dnsc_serv[servi].sa, ctx->dnsc_salen) < 0) {
     /*XXX just ignore the sendto() error for now and try again.
      * In the future, it may be possible to retrieve the error code
@@ -899,7 +919,7 @@ dns_submit_dn(struct dns_ctx *ctx,
   SETCTXOPEN(ctx);
   dns_assert_ctx(ctx);
 
-  q = calloc(sizeof(*q), 1);
+  q = (struct dns_query*)calloc(sizeof(*q), 1);
   if (!q) {
     ctx->dnsc_qstatus = DNS_E_NOMEM;
     return NULL;
@@ -992,7 +1012,7 @@ void dns_ioevent(struct dns_ctx *ctx, time_t now) {
 again: /* receive the reply */
 
   slen = sizeof(sns);
-  r = recvfrom(ctx->dnsc_udpsock, (void*)pbuf, ctx->dnsc_udpbuf,
+  r = recvfrom(ctx->dnsc_udpsock, (char*)pbuf, ctx->dnsc_udpbuf,
                MSG_DONTWAIT, &sns.sa, &slen);
   if (r < 0) {
     /*XXX just ignore recvfrom() errors for now.
@@ -1254,7 +1274,7 @@ struct dns_resolve_data {
 };
 
 static void dns_resolve_cb(struct dns_ctx *ctx, void *result, void *data) {
-  struct dns_resolve_data *d = data;
+  struct dns_resolve_data *d = (struct dns_resolve_data*)data;
   d->dnsrd_result = result;
   d->dnsrd_done = 1;
   ctx = ctx;

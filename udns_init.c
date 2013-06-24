@@ -27,11 +27,16 @@
 #ifdef WINDOWS
 # include <winsock2.h>          /* includes <windows.h> */
 # include <iphlpapi.h>		/* for dns server addresses etc */
+# include <tchar.h>
 #else
 # include <sys/types.h>
 # include <unistd.h>
 # include <fcntl.h>
 #endif	/* !WINDOWS */
+
+#if TARGET_OS_IPHONE
+#include <resolv.h>
+#endif //TARGET_OS_IPHONE
 
 #include <stdlib.h>
 #include <string.h>
@@ -75,16 +80,16 @@ static int dns_initns_iphlpapi(struct dns_ctx *ctx) {
   DWORD dwRetVal;
   int ret = -1;
 
-  h_iphlpapi = LoadLibrary("iphlpapi.dll");
+  h_iphlpapi = LoadLibrary(_T("iphlpapi.dll"));
   if (!h_iphlpapi)
     return -1;
   pfnGetAdAddrs = (GetAdaptersAddressesFunc)
-    GetProcAddress(h_iphlpapi, "GetAdaptersAddresses");
+    GetProcAddress((HMODULE)h_iphlpapi, "GetAdaptersAddresses");
   if (!pfnGetAdAddrs) goto freelib;
   ulOutBufLen = 0;
   dwRetVal = pfnGetAdAddrs(AF_UNSPEC, 0, NULL, NULL, &ulOutBufLen);
   if (dwRetVal != ERROR_BUFFER_OVERFLOW) goto freelib;
-  pAddrBuf = malloc(ulOutBufLen);
+  pAddrBuf = (PIP_ADAPTER_ADDRESSES)(malloc(ulOutBufLen));
   if (!pAddrBuf) goto freelib;
   dwRetVal = pfnGetAdAddrs(AF_UNSPEC, 0, NULL, pAddrBuf, &ulOutBufLen);
   if (dwRetVal != ERROR_SUCCESS) goto freemem;
@@ -97,7 +102,7 @@ static int dns_initns_iphlpapi(struct dns_ctx *ctx) {
 freemem:
   free(pAddrBuf);
 freelib:
-  FreeLibrary(h_iphlpapi);
+  FreeLibrary((HMODULE)h_iphlpapi);
   return ret;
 }
 
@@ -116,17 +121,17 @@ static int dns_initns_registry(struct dns_ctx *ctx) {
 
 #define REGKEY_WINNT "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters"
 #define REGKEY_WIN9x "SYSTEM\\CurrentControlSet\\Services\\VxD\\MSTCP"
-  res = RegOpenKeyEx(HKEY_LOCAL_MACHINE, REGKEY_WINNT, 0, KEY_QUERY_VALUE, &hk);
+  res = RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T(REGKEY_WINNT), 0, KEY_QUERY_VALUE, &hk);
   if (res != ERROR_SUCCESS)
-    res = RegOpenKeyEx(HKEY_LOCAL_MACHINE, REGKEY_WIN9x,
+    res = RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T(REGKEY_WIN9x),
                        0, KEY_QUERY_VALUE, &hk);
   if (res != ERROR_SUCCESS)
     return -1;
   len = sizeof(valBuf) - 1;
-  res = RegQueryValueEx(hk, "NameServer", NULL, &type, (BYTE*)valBuf, &len);
+  res = RegQueryValueEx(hk, _T("NameServer"), NULL, &type, (BYTE*)valBuf, &len);
   if (res != ERROR_SUCCESS || !len || !valBuf[0]) {
     len = sizeof(valBuf) - 1;
-    res = RegQueryValueEx(hk, "DhcpNameServer", NULL, &type,
+    res = RegQueryValueEx(hk, _T("DhcpNameServer"), NULL, &type,
                           (BYTE*)valBuf, &len);
   }
   RegCloseKey(hk);
@@ -143,7 +148,7 @@ static int dns_initns_registry(struct dns_ctx *ctx) {
 
 static int dns_init_resolvconf(struct dns_ctx *ctx) {
   char *v;
-  char buf[2049];	/* this buffer is used to hold /etc/resolv.conf */
+  char buf[4097];	/* this buffer is used to hold /etc/resolv.conf */
   int has_srch = 0;
 
   /* read resolv.conf... */
@@ -184,6 +189,46 @@ static int dns_init_resolvconf(struct dns_ctx *ctx) {
   }
 
   buf[sizeof(buf)-1] = '\0';
+
+#if TARGET_OS_IPHONE
+  // SOLUTION FOUND:
+  // http://iphone.galloway.me.uk/2009/11/iphone-dns-servers/
+  
+  // ORIGINAL CODE EXAMPLE:
+  //
+  //      #if TARGET_OS_IPHONE
+  //      #include <resolv.h>
+  //      #endif
+  // 
+  //      ...
+  // 
+  //      #if TARGET_OS_IPHONE
+  //      // XXX: On the iPhone we need to get the DNS servers using resolv.h magic
+  //      if ((_res.options & RES_INIT) == 0) res_init();
+  //      channel->nservers = _res.nscount;
+  //      channel->servers = malloc(channel->nservers * sizeof(struct server_state));
+  //      memset(channel->servers, '\0', channel->nservers * sizeof(struct server_state));
+  // 
+  //      int i;
+  //      for (i = 0; i < channel->nservers; i++)
+  //      {
+  //          memcpy(&channel->servers[i].addr, &_res.nsaddr_list[i].sin_addr, sizeof(struct in_addr));
+  //      }
+  //      #endif
+
+  if ((_res.options & RES_INIT) == 0) res_init();
+  
+  int i;
+  for (i = 0; i < _res.nscount; i++)
+  {
+    struct sockaddr_in address;
+    memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    address.sin_addr = _res.nsaddr_list[i].sin_addr;              // loopback is a special case since it could be stored as ::1 in IPv6
+
+    dns_add_serv_s(ctx, (struct sockaddr *)&address);
+  }
+#endif //TARGET_OS_IPHONE
 
   /* get list of nameservers from env. vars. */
   if ((v = getenv("NSCACHEIP")) != NULL ||
@@ -226,6 +271,7 @@ int dns_init(struct dns_ctx *ctx, int do_open) {
 #else
   dns_init_resolvconf(ctx);
 #endif
+  dns_init_install_back_resolver(ctx);
 
   return do_open ? dns_open(ctx) : 0;
 }

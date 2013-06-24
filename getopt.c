@@ -87,7 +87,7 @@ static void printerr(char *const *argv, const char *msg) {
 #endif
 
 GETOPT_CLASS int getopt(int argc, char *const *argv, const char *opts) {
-  char *p;
+  char *p = 0;
 
   optarg = 0;
   if (*opts == '+') /* GNU extension (permutation) - isn't supported */
@@ -119,7 +119,7 @@ GETOPT_CLASS int getopt(int argc, char *const *argv, const char *opts) {
   optopt = *nextc++;
   if (!*nextc)
     ++optind;
-  p = strchr(opts, optopt);
+  p = (char *)strchr(opts, optopt);
   if (!p || optopt == ':') {
     printerr(argv, "illegal option");
     return '?';
