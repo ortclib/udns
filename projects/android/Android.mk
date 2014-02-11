@@ -6,6 +6,7 @@ LOCAL_ARM_MODE := arm
 
 LOCAL_CFLAGS	:= -Wall \
 -W \
+-std=gnu++11 \
 -O2 \
 -pipe \
 -fPIC \
@@ -18,10 +19,8 @@ LOCAL_C_INCLUDES:= \
 		$(LOCAL_PATH) \
 
 LOCAL_SRC_FILES := dnsget.c \
-ex-rdns.c \
 getopt.c \
 inet_XtoX.c \
-rblcheck.c \
 udns_bl.c \
 udns_codes.c \
 udns_dn.c \
