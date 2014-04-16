@@ -47,6 +47,10 @@
 # define closesocket(sock) close(sock)
 #endif	/* !WINDOWS */
 
+#ifndef __linux__
+#include <arpa/inet.h>
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
