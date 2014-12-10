@@ -31,14 +31,14 @@ if [[ $1 == *ndk* ]]; then
 	Input=$1;
 else
 	echo "Please enter your android ndk path:"
-	echo "For example:/home/astro/android-ndk-r8e"
+	echo "For example:/home/astro/android-ndk-r10c"
 	read Input
 	echo "You entered:$Input"
 fi
 
 #Set path
 echo "----------------- Exporting the android-ndk path ----------------"
-export PATH=$PATH:$Input:$Input/toolchains/arm-linux-androideabi-4.7/prebuilt/$HOST_OS-$ARCHTYPE/bin
+export PATH=$PATH:$Input:$Input/toolchains/llvm-3.5/prebuilt/$HOST_OS-$ARCHTYPE/bin
 
 #create install directories
 mkdir -p ./../../../build
@@ -51,7 +51,7 @@ mkdir -p ./../../../build/android/udns
 
 rm -rf ./obj/*
 export NDK_PROJECT_PATH=`pwd`
-ndk-build APP_PLATFORM=android-9
+ndk-build APP_PLATFORM=android-19
 popd
 
 echo "-------- Installing udns libs -----"

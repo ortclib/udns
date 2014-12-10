@@ -3,15 +3,17 @@ LOCAL_PATH := $(call my-dir)/../../
 include $(CLEAR_VARS)
 
 LOCAL_ARM_MODE := arm
+LOCAL_CLANG := true
 
 LOCAL_CFLAGS	:= -Wall \
 -W \
--std=gnu++11 \
 -O2 \
 -pipe \
 -fPIC \
 -D_ANDROID \
 -DHAVE_CONFIG_H \
+
+LOCAL_CPPFLAGS += -std=c++11
 
 LOCAL_MODULE    := udns_android
 
