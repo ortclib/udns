@@ -18,7 +18,10 @@ LOCAL_CPPFLAGS += -std=c++11
 LOCAL_MODULE    := udns_android
 
 LOCAL_C_INCLUDES:= \
-		$(LOCAL_PATH) \
+$(LOCAL_PATH) \
+$(ANDROIDNDK_PATH)/sources/android/support/include \
+$(ANDROIDNDK_PATH)/sources/cxx-stl/llvm-libc++/libcxx/include \
+$(ANDROIDNDK_PATH)/platforms/android-19/arch-arm/usr/include \
 
 LOCAL_SRC_FILES := dnsget.c \
 getopt.c \
