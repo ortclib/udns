@@ -89,10 +89,12 @@ struct dns_query {
   dnsc_t dnsq_dn[DNS_MAXDN+DNS_DNPAD];	/* the query DN +alignment */
 };
 
+#ifndef __arm64__
 #ifndef __linux__
 extern int dns_pton(int af, const char *src, void *dst) {
   return inet_pton(af, src, dst);
 }
+#endif
 #endif
 
 /* working with dns_query lists */
