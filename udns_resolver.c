@@ -24,6 +24,9 @@
 #ifdef HAVE_CONFIG_H
 # include "config.h"
 #endif
+
+#include "udns.h"
+
 #ifdef WINDOWS
 # include <winsock2.h>          /* includes <windows.h> */
 # include <ws2tcpip.h>          /* needed for struct in6_addr */
@@ -90,6 +93,13 @@ struct dns_query {
 };
 
 #ifndef __linux__
+
+#ifdef UDNS_WINRT
+#if (WINAPI_FAMILY == WINAPI_FAMILY_PHONE_APP)
+int inet_pton(int af, const char *src, void *dst);
+#endif //(WINAPI_FAMILY == WINAPI_FAMILY_PHONE_APP)
+#endif //UDNS_WINRT
+
 extern int dns_pton(int af, const char *src, void *dst) {
   return inet_pton(af, src, dst);
 }

@@ -1,0 +1,72 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "udns", "udns", "{3473F951-A4BB-45F0-9E1F-821F3511BB80}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "udns.Shared", "udns\udns.Shared\udns.Shared.vcxitems", "{D66B52BD-7915-49BA-9CBD-D409BCA40C55}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "udns.Windows", "udns\udns.Windows\udns.Windows.vcxproj", "{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "udns.WindowsPhone", "udns\udns.WindowsPhone\udns.WindowsPhone.vcxproj", "{0CC26E42-E162-478C-8CCB-FC81A7776450}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "udns.Win32", "udns.Win32\udns.Win32.vcxproj", "{356B3BBC-30C4-45FD-9270-1AA6B32AD553}"
+EndProject
+Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		udns\udns.Shared\udns.Shared.vcxitems*{3c9c21f5-54be-4c18-ac96-f28a43ef2844}*SharedItemsImports = 4
+		udns\udns.Shared\udns.Shared.vcxitems*{0cc26e42-e162-478c-8ccb-fc81a7776450}*SharedItemsImports = 4
+		udns\udns.Shared\udns.Shared.vcxitems*{356b3bbc-30c4-45fd-9270-1aa6b32ad553}*SharedItemsImports = 4
+		udns\udns.Shared\udns.Shared.vcxitems*{d66b52bd-7915-49ba-9cbd-d409bca40c55}*SharedItemsImports = 9
+	EndGlobalSection
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM = Debug|ARM
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Release|ARM = Release|ARM
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Debug|ARM.ActiveCfg = Debug|ARM
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Debug|ARM.Build.0 = Debug|ARM
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Debug|Win32.ActiveCfg = Debug|Win32
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Debug|Win32.Build.0 = Debug|Win32
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Debug|x64.ActiveCfg = Debug|x64
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Debug|x64.Build.0 = Debug|x64
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Release|ARM.ActiveCfg = Release|ARM
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Release|ARM.Build.0 = Release|ARM
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Release|Win32.ActiveCfg = Release|Win32
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Release|Win32.Build.0 = Release|Win32
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Release|x64.ActiveCfg = Release|x64
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844}.Release|x64.Build.0 = Release|x64
+		{0CC26E42-E162-478C-8CCB-FC81A7776450}.Debug|ARM.ActiveCfg = Debug|ARM
+		{0CC26E42-E162-478C-8CCB-FC81A7776450}.Debug|ARM.Build.0 = Debug|ARM
+		{0CC26E42-E162-478C-8CCB-FC81A7776450}.Debug|Win32.ActiveCfg = Debug|Win32
+		{0CC26E42-E162-478C-8CCB-FC81A7776450}.Debug|Win32.Build.0 = Debug|Win32
+		{0CC26E42-E162-478C-8CCB-FC81A7776450}.Debug|x64.ActiveCfg = Debug|Win32
+		{0CC26E42-E162-478C-8CCB-FC81A7776450}.Release|ARM.ActiveCfg = Release|ARM
+		{0CC26E42-E162-478C-8CCB-FC81A7776450}.Release|ARM.Build.0 = Release|ARM
+		{0CC26E42-E162-478C-8CCB-FC81A7776450}.Release|Win32.ActiveCfg = Release|Win32
+		{0CC26E42-E162-478C-8CCB-FC81A7776450}.Release|Win32.Build.0 = Release|Win32
+		{0CC26E42-E162-478C-8CCB-FC81A7776450}.Release|x64.ActiveCfg = Release|Win32
+		{356B3BBC-30C4-45FD-9270-1AA6B32AD553}.Debug|ARM.ActiveCfg = Debug|Win32
+		{356B3BBC-30C4-45FD-9270-1AA6B32AD553}.Debug|Win32.ActiveCfg = Debug|Win32
+		{356B3BBC-30C4-45FD-9270-1AA6B32AD553}.Debug|Win32.Build.0 = Debug|Win32
+		{356B3BBC-30C4-45FD-9270-1AA6B32AD553}.Debug|x64.ActiveCfg = Debug|Win32
+		{356B3BBC-30C4-45FD-9270-1AA6B32AD553}.Release|ARM.ActiveCfg = Release|Win32
+		{356B3BBC-30C4-45FD-9270-1AA6B32AD553}.Release|Win32.ActiveCfg = Release|Win32
+		{356B3BBC-30C4-45FD-9270-1AA6B32AD553}.Release|Win32.Build.0 = Release|Win32
+		{356B3BBC-30C4-45FD-9270-1AA6B32AD553}.Release|x64.ActiveCfg = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D66B52BD-7915-49BA-9CBD-D409BCA40C55} = {3473F951-A4BB-45F0-9E1F-821F3511BB80}
+		{3C9C21F5-54BE-4C18-AC96-F28A43EF2844} = {3473F951-A4BB-45F0-9E1F-821F3511BB80}
+		{0CC26E42-E162-478C-8CCB-FC81A7776450} = {3473F951-A4BB-45F0-9E1F-821F3511BB80}
+		{356B3BBC-30C4-45FD-9270-1AA6B32AD553} = {3473F951-A4BB-45F0-9E1F-821F3511BB80}
+	EndGlobalSection
+EndGlobal

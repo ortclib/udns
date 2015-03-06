@@ -24,9 +24,16 @@
 #ifdef HAVE_CONFIG_H
 # include "config.h"
 #endif
+
+#include "udns.h"
+
 #ifdef WINDOWS
 # include <winsock2.h>          /* includes <windows.h> */
+
+#ifndef NO_IPHLPAPI
 # include <iphlpapi.h>		/* for dns server addresses etc */
+#endif //NO_IPHLPAPI
+
 # include <tchar.h>
 #else
 # include <sys/types.h>
@@ -40,7 +47,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "udns.h"
 
 #define ISSPACE(x) (x == ' ' || x == '\t' || x == '\r' || x == '\n')
 
@@ -48,13 +54,23 @@ static const char space[] = " \t\r\n";
 
 static void dns_set_serv_internal(struct dns_ctx *ctx, char *serv) {
   dns_add_serv(ctx, NULL);
-  for(serv = strtok(serv, space); serv; serv = strtok(NULL, space))
+#ifdef WINDOWS
+  char *nextToken = NULL;
+  for (serv = strtok_s(serv, space, &nextToken); serv; serv = strtok_s(serv, space, &nextToken))
+#else
+  for (serv = strtok(serv, space); serv; serv = strtok(NULL, space))
+#endif //UDNS_WINRT
     dns_add_serv(ctx, serv);
 }
 
 static void dns_set_srch_internal(struct dns_ctx *ctx, char *srch) {
   dns_add_srch(ctx, NULL);
-  for(srch = strtok(srch, space); srch; srch = strtok(NULL, space))
+#ifdef WINDOWS
+  char *nextToken = NULL;
+  for (srch = strtok_s(srch, space, &nextToken); srch; srch = strtok_s(srch, space, &nextToken))
+#else
+  for (srch = strtok(srch, space); srch; srch = strtok(NULL, space))
+#endif //UDNS_WINRT
     dns_add_srch(ctx, srch);
 }
 
@@ -113,6 +129,7 @@ freelib:
 #endif /* NO_IPHLPAPI */
 
 static int dns_initns_registry(struct dns_ctx *ctx) {
+#ifndef UDNS_WINRT
   LONG res;
   HKEY hk;
   DWORD type = REG_EXPAND_SZ | REG_SZ;
@@ -142,6 +159,9 @@ static int dns_initns_registry(struct dns_ctx *ctx) {
    * "192.168.1.1 123.21.32.12" */
   dns_set_serv_internal(ctx, valBuf);
   return 0;
+#else
+  return -1;
+#endif //UDNS_WINRT
 }
 
 #else /* !WINDOWS */

@@ -26,7 +26,6 @@
 #include <assert.h>
 #ifndef WINDOWS
 # include <sys/types.h>
-# include <netinet/in.h>
 #endif
 #include "udns.h"
 

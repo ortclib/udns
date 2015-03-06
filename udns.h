@@ -34,6 +34,21 @@
 #endif //WINDOWS
 
 #ifdef WINDOWS
+
+#ifdef __cplusplus_winrt
+#ifndef UDNS_WINRT
+#define UDNS_WINRT
+#endif //UDNS_WINRT
+#endif //__cplusplus_winrt
+
+#ifndef HAVE_IPv6
+#define HAVE_IPv6
+#endif //HAVE_IPv6
+
+#ifdef UDNS_WINRT
+#define NO_IPHLPAPI
+#endif //UDNS_WINRT
+
 # ifdef UDNS_DYNAMIC_LIBRARY
 #  ifdef DNS_LIBRARY_BUILD
 #   define UDNS_API __declspec(dllexport)
