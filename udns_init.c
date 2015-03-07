@@ -42,9 +42,9 @@
 # include <fcntl.h>
 #endif	/* !WINDOWS */
 
-#if TARGET_OS_IPHONE
+#ifdef HAVE_RES_INIT
 #include <resolv.h>
-#endif //TARGET_OS_IPHONE
+#endif /* HAVE_RES_INIT */
 
 #include <stdlib.h>
 #include <string.h>
@@ -271,9 +271,11 @@ static int dns_init_resconf(struct dns_ctx *ctx) {
   //      }
   //      #endif
 
+  int i;
+  int result = 0;
+
   if ((_res.options & RES_INIT) == 0) res_init();
 
-  int i;
   for (i = 0; i < _res.nscount; i++)
   {
     struct sockaddr_in address;
@@ -281,8 +283,10 @@ static int dns_init_resconf(struct dns_ctx *ctx) {
     address.sin_family = AF_INET;
     address.sin_addr = _res.nsaddr_list[i].sin_addr;              // loopback is a special case since it could be stored as ::1 in IPv6
 
-    dns_add_serv_s(ctx, (struct sockaddr *)&address);
+    result = dns_add_serv_s(ctx, (struct sockaddr *)&address);
+    if (result < 0) return result;
   }
+  return result;
 }
 
 #else /* HAVE_RES_INIT */

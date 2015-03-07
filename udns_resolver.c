@@ -92,19 +92,6 @@ struct dns_query {
   dnsc_t dnsq_dn[DNS_MAXDN+DNS_DNPAD];	/* the query DN +alignment */
 };
 
-#ifndef __linux__
-
-#ifdef UDNS_WINRT
-#if (WINAPI_FAMILY == WINAPI_FAMILY_PHONE_APP)
-int inet_pton(int af, const char *src, void *dst);
-#endif //(WINAPI_FAMILY == WINAPI_FAMILY_PHONE_APP)
-#endif //UDNS_WINRT
-
-extern int dns_pton(int af, const char *src, void *dst) {
-  return inet_pton(af, src, dst);
-}
-#endif
-
 /* working with dns_query lists */
 
 static __inline void qlist_init(struct dns_qlink *list) {
