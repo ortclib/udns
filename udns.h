@@ -27,28 +27,13 @@
 
 #define UDNS_VERSION "0.2"
 
-#ifndef WINDOWS
-# ifdef _WIN32
+#ifdef _WIN32
+# ifndef WINDOWS
 #  define WINDOWS
-# endif //_WIN32
-#endif //WINDOWS
+# endif /* ndef WINDOWS */
+#endif /* _WIN32 */
 
 #ifdef WINDOWS
-
-#ifdef __cplusplus_winrt
-#ifndef UDNS_WINRT
-#define UDNS_WINRT
-#endif //UDNS_WINRT
-#endif //__cplusplus_winrt
-
-#ifndef HAVE_IPv6
-#define HAVE_IPv6
-#endif //HAVE_IPv6
-
-#ifdef UDNS_WINRT
-#define NO_IPHLPAPI
-#endif //UDNS_WINRT
-
 # ifdef UDNS_DYNAMIC_LIBRARY
 #  ifdef DNS_LIBRARY_BUILD
 #   define UDNS_API __declspec(dllexport)
@@ -57,8 +42,8 @@
 #   define UDNS_API __declspec(dllimport)
 #   define UDNS_DATA_API __declspec(dllimport)
 #  endif
-# endif
-#endif
+# endif /* UDNS_DYNAMIC_LIBRARY */
+#endif /* WINDOWS */
 
 #ifndef UDNS_API
 # define UDNS_API
@@ -417,12 +402,13 @@ dns_free(struct dns_ctx *ctx);
 UDNS_API int
 dns_add_serv(struct dns_ctx *ctx, const char *serv);
 
+/* get the number of nameservers for a resolver context */
+UDNS_API int
+dns_serv_count(struct dns_ctx *ctx);
+
 /* add nameserver using struct sockaddr structure (with ports) */
 UDNS_API int
 dns_add_serv_s(struct dns_ctx *ctx, const struct sockaddr *sa);
-
-UDNS_API int
-dns_init_install_back_resolver(struct dns_ctx *ctx);
 
 /* add search list element for a resolver context (or reset it if srch==NULL) */
 UDNS_API int

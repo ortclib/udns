@@ -24,9 +24,14 @@
 #ifdef HAVE_CONFIG_H
 # include "config.h"
 #endif
+
+#include "udns.h"
+#include "platform.h"
+
 #ifdef WINDOWS
-#include <windows.h>
 #include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
 #else
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -63,11 +68,30 @@ static int notfound;
  *  3 - sent and received packet contents
  */
 
+#ifdef HAVE_STRERROR_S
+
+static char *get_strerror(char *buffer, size_t numberOfBytes, int error) {
+  buffer[0] = '\0';
+  (void)strerror_s(buffer, numberOfBytes, error);
+  return buffer;
+}
+
+#else /* HAVE_STRERROR_S */
+
+static char *get_strerror(char *buffer, size_t numberOfBytes, int error) {
+  return strerror(error);
+}
+
+#endif /* HAVE_STRERROR_S */
+
+
 static void die(int errnum, const char *fmt, ...) {
+  char errorBuf[1024];
+
   va_list ap;
   fprintf(stderr, "%s: ", progname);
   va_start(ap, fmt); vfprintf(stderr, fmt, ap); va_end(ap);
-  if (errnum) fprintf(stderr, ": %s\n", strerror(errnum));
+  if (errnum) fprintf(stderr, ": %s\n", get_strerror(errorBuf, sizeof(errorBuf), errnum));
   else putc('\n', stderr);
   fflush(stderr);
   exit(1);
@@ -168,7 +192,13 @@ printb64(const unsigned char *c, const unsigned char *e) {
 
 static void
 printdate(time_t time) {
+#ifdef HAVE_GMTIME_S
+  struct tm tmval;
+  struct tm *tm = &tmval;
+  errno_t error = gmtime_s(&tmval, &time);
+#else
   struct tm *tm = gmtime(&time);
+#endif /* HAVE_GMTIME_S */
   printf("%04d%02d%02d%02d%02d%02d",
     tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
     tm->tm_hour, tm->tm_min, tm->tm_sec);
@@ -615,7 +645,12 @@ int main(int argc, char **argv) {
   case 'f': {
     char *opt;
     const char *const delim = " \t,;";
-    for(opt = strtok(optarg, delim); opt != NULL; opt = strtok(NULL, delim)) {
+#ifdef HAVE_STRTOK_S
+    char *context = NULL;
+    for(opt = strtok_s(optarg, delim, &context); opt != NULL; opt = strtok_s(NULL, delim, &context)) {
+#else
+    for (opt = strtok(optarg, delim); opt != NULL; opt = strtok(NULL, delim)) {
+#endif /* HAVE_STRTOK_S */
       if (dns_set_opts(NULL, optarg) == 0)
         ;
       else if (strcmp(opt, "aa") == 0) flags |= DNS_AAONLY;

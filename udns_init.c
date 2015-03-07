@@ -26,13 +26,14 @@
 #endif
 
 #include "udns.h"
+#include "platform.h"
 
 #ifdef WINDOWS
 # include <winsock2.h>          /* includes <windows.h> */
 
-#ifndef NO_IPHLPAPI
+#ifdef HAVE_IPHLPAPI_H
 # include <iphlpapi.h>		/* for dns server addresses etc */
-#endif //NO_IPHLPAPI
+#endif /* HAVE_IPHLPAPI_H */
 
 # include <tchar.h>
 #else
@@ -74,9 +75,7 @@ static void dns_set_srch_internal(struct dns_ctx *ctx, char *srch) {
     dns_add_srch(ctx, srch);
 }
 
-#ifdef WINDOWS
-
-#ifndef NO_IPHLPAPI
+#ifdef HAVE_IPHLPAPI_H
 /* Apparently, some systems does not have proper headers for IPHLPAIP to work.
  * The best is to upgrade headers, but here's another, ugly workaround for
  * this: compile with -DNO_IPHLPAPI.
@@ -122,14 +121,15 @@ freelib:
   return ret;
 }
 
-#else /* NO_IPHLPAPI */
+#else /* HAVE_IPHLPAPI_H */
 
 #define dns_initns_iphlpapi(ctx) (-1)
 
-#endif /* NO_IPHLPAPI */
+#endif /* HAVE_IPHLPAPI_H */
+
+#ifdef HAVE_REGKEY
 
 static int dns_initns_registry(struct dns_ctx *ctx) {
-#ifndef UDNS_WINRT
   LONG res;
   HKEY hk;
   DWORD type = REG_EXPAND_SZ | REG_SZ;
@@ -159,13 +159,14 @@ static int dns_initns_registry(struct dns_ctx *ctx) {
    * "192.168.1.1 123.21.32.12" */
   dns_set_serv_internal(ctx, valBuf);
   return 0;
-#else
-  return -1;
-#endif //UDNS_WINRT
 }
+#else /* HAVE_REGKEY */
 
-#else /* !WINDOWS */
+#define dns_initns_registry(ctx) (-1)
 
+#endif /* HAVE_REGKEY */
+
+#ifdef HAVE_ETC_RESOLV_CONF
 static int dns_init_resolvconf(struct dns_ctx *ctx) {
   char *v;
   char buf[4097];	/* this buffer is used to hold /etc/resolv.conf */
@@ -173,13 +174,13 @@ static int dns_init_resolvconf(struct dns_ctx *ctx) {
 
   /* read resolv.conf... */
   { int fd = open("/etc/resolv.conf", O_RDONLY);
-    if (fd >= 0) {
-      int l = read(fd, buf, sizeof(buf) - 1);
-      close(fd);
-      buf[l < 0 ? 0 : l] = '\0';
-    }
-    else
-      buf[0] = '\0';
+  if (fd >= 0) {
+    int l = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    buf[l < 0 ? 0 : l] = '\0';
+  }
+  else
+    buf[0] = '\0';
   }
   if (buf[0]) {	/* ...and parse it */
     char *line, *nextline;
@@ -188,32 +189,66 @@ static int dns_init_resolvconf(struct dns_ctx *ctx) {
       nextline = strchr(line, '\n');
       if (nextline) *nextline++ = '\0';
       v = line;
-      while(*v && !ISSPACE(*v)) ++v;
+      while (*v && !ISSPACE(*v)) ++v;
       if (!*v) continue;
       *v++ = '\0';
-      while(ISSPACE(*v)) ++v;
+      while (ISSPACE(*v)) ++v;
       if (!*v) continue;
       if (strcmp(line, "domain") == 0) {
         dns_set_srch_internal(ctx, strtok(v, space));
-	has_srch = 1;
+        has_srch = 1;
       }
       else if (strcmp(line, "search") == 0) {
         dns_set_srch_internal(ctx, v);
-	has_srch = 1;
+        has_srch = 1;
       }
       else if (strcmp(line, "nameserver") == 0)
         dns_add_serv(ctx, strtok(v, space));
       else if (strcmp(line, "options") == 0)
         dns_set_opts(ctx, v);
-    } while((line = nextline) != NULL);
+    } while ((line = nextline) != NULL);
   }
 
-  buf[sizeof(buf)-1] = '\0';
+  buf[sizeof(buf) - 1] = '\0';
 
-#if TARGET_OS_IPHONE
+  /* get list of nameservers from env. vars. */
+  if ((v = getenv("NSCACHEIP")) != NULL ||
+    (v = getenv("NAMESERVERS")) != NULL) {
+    strncpy(buf, v, sizeof(buf) - 1);
+    dns_set_serv_internal(ctx, buf);
+  }
+  /* if $LOCALDOMAIN is set, use it for search list */
+  if ((v = getenv("LOCALDOMAIN")) != NULL) {
+    strncpy(buf, v, sizeof(buf) - 1);
+    dns_set_srch_internal(ctx, buf);
+    has_srch = 1;
+  }
+  if ((v = getenv("RES_OPTIONS")) != NULL)
+    dns_set_opts(ctx, v);
+
+  /* if still no search list, use local domain name */
+  if (has_srch &&
+    gethostname(buf, sizeof(buf) - 1) == 0 &&
+    (v = strchr(buf, '.')) != NULL &&
+    *++v != '\0')
+    dns_add_srch(ctx, v);
+
+  return 0;
+}
+
+#else /* HAVE_ETC_RESOLV_CONF */
+
+#define dns_init_resolvconf(ctx) (-1)
+
+#endif /* HAVE_ETC_RESOLV_CONF */
+
+
+#ifdef HAVE_RES_INIT
+
+static int dns_init_resconf(struct dns_ctx *ctx) {
   // SOLUTION FOUND:
   // http://iphone.galloway.me.uk/2009/11/iphone-dns-servers/
-  
+
   // ORIGINAL CODE EXAMPLE:
   //
   //      #if TARGET_OS_IPHONE
@@ -237,7 +272,7 @@ static int dns_init_resolvconf(struct dns_ctx *ctx) {
   //      #endif
 
   if ((_res.options & RES_INIT) == 0) res_init();
-  
+
   int i;
   for (i = 0; i < _res.nscount; i++)
   {
@@ -248,50 +283,37 @@ static int dns_init_resolvconf(struct dns_ctx *ctx) {
 
     dns_add_serv_s(ctx, (struct sockaddr *)&address);
   }
-#endif //TARGET_OS_IPHONE
-
-  /* get list of nameservers from env. vars. */
-  if ((v = getenv("NSCACHEIP")) != NULL ||
-      (v = getenv("NAMESERVERS")) != NULL) {
-    strncpy(buf, v, sizeof(buf) - 1);
-    dns_set_serv_internal(ctx, buf);
-  }
-  /* if $LOCALDOMAIN is set, use it for search list */
-  if ((v = getenv("LOCALDOMAIN")) != NULL) {
-    strncpy(buf, v, sizeof(buf) - 1);
-    dns_set_srch_internal(ctx, buf);
-    has_srch = 1;
-  }
-  if ((v = getenv("RES_OPTIONS")) != NULL)
-    dns_set_opts(ctx, v);
-
-  /* if still no search list, use local domain name */
-  if (has_srch &&
-      gethostname(buf, sizeof(buf) - 1) == 0 &&
-      (v = strchr(buf, '.')) != NULL &&
-      *++v != '\0')
-    dns_add_srch(ctx, v);
-
-  return 0;
 }
 
-#endif /* !WINDOWS */
+#else /* HAVE_RES_INIT */
+
+#define dns_init_resconf(ctx) (-1)
+
+#endif /* HAVE_RES_INIT */
+
+
+int dns_init_install_back_resolver(struct dns_ctx *ctx) {
+  // http://code.google.com/speed/public-dns/docs/using.html
+  int res = dns_serv_count(ctx);
+  if (res > 0) return res;
+
+  res = dns_add_serv(ctx, "8.8.8.8");
+  if (res < 0) return res;
+  return dns_add_serv(ctx, "8.8.4.4");
+}
 
 int dns_init(struct dns_ctx *ctx, int do_open) {
   if (!ctx)
     ctx = &dns_defctx;
+
   dns_reset(ctx);
 
-#ifdef WINDOWS
-  if (dns_initns_iphlpapi(ctx) != 0)
-    dns_initns_registry(ctx);
-  /*XXX WINDOWS: probably good to get default domain and search list too...
-   * And options.  Something is in registry. */
-  /*XXX WINDOWS: maybe environment variables are also useful? */
-#else
-  dns_init_resolvconf(ctx);
-#endif
-  dns_init_install_back_resolver(ctx);
+  if (dns_initns_iphlpapi(ctx) < 0) {
+    (void)dns_initns_registry(ctx);
+  }
+  (void)dns_init_resolvconf(ctx);
+  (void)dns_init_resconf(ctx);
+  (void)dns_init_install_back_resolver(ctx);
 
   return do_open ? dns_open(ctx) : 0;
 }

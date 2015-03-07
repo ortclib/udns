@@ -22,22 +22,38 @@
 
  */
 
+#include "platform.h"
+
 #include <sys/types.h>
+
+#ifdef WINDOWS
+#include <winsock2.h>
+#include <windows.h>
+#else
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/poll.h>
 #include <unistd.h>
+#endif /* WINDOWS */
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>
 #include "udns.h"
 
+#ifndef HAVE_GETOPT
+#include "getopt.c"
+#endif /* ndef HAVE_GETOPT */
+
 static int curq;
 
 static const char *n2ip(const unsigned char *c) {
   static char b[sizeof("255.255.255.255")];
+#ifdef HAVE_SPRINTF_S
+  sprintf_s(b, sizeof(b), "%u.%u.%u.%u", c[0], c[1], c[2], c[3]);
+#else
   sprintf(b, "%u.%u.%u.%u", c[0], c[1], c[2], c[3]);
+#endif /* HAVE_SPRINTF_S */
   return b;
 }
 static void dnscb(struct dns_ctx *ctx, struct dns_rr_ptr *rr, void *data) {
@@ -105,6 +121,7 @@ int main(int argc, char **argv) {
     if (curq) {
       c = dns_timeouts(0, -1, now);
       c = poll(&pfd, 1, c < 0 ? -1 : c * 1000);
+
       now = time(NULL);
       if (c)
         dns_ioevent(0, now);

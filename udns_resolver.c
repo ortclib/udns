@@ -302,18 +302,11 @@ int dns_add_serv_s(struct dns_ctx *ctx, const struct sockaddr *sa) {
   return ++ctx->dnsc_nserv;
 }
 
-int dns_init_install_back_resolver(struct dns_ctx *ctx) {
-  // http://code.google.com/speed/public-dns/docs/using.html
-  int res = 0;
-
+UDNS_API int
+dns_serv_count(struct dns_ctx *ctx)
+{
   SETCTXFRESH(ctx);
-  if (ctx->dnsc_nserv > 0)
-    return ctx->dnsc_nserv;
-  
-  res = dns_add_serv(ctx, "8.8.8.8");
-  if (res < 0)
-    return res;
-  return dns_add_serv(ctx, "8.8.4.4");
+  return (ctx->dnsc_nserv);
 }
 
 int dns_set_opts(struct dns_ctx *ctx, const char *opts) {

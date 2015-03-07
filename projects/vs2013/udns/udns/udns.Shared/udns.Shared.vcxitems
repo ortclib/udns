@@ -18,6 +18,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\..\config.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\..\platform.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns.h" />
   </ItemGroup>
   <ItemGroup>
@@ -69,10 +70,12 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\inet_XtoX.c">
       <CompileAsWinRT>false</CompileAsWinRT>
+      <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\rblcheck.c">
       <CompileAsWinRT>false</CompileAsWinRT>
       <ExcludedFromBuild>true</ExcludedFromBuild>
+      <DisableSpecificWarnings>4090</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_bl.c">
       <CompileAsWinRT>false</CompileAsWinRT>

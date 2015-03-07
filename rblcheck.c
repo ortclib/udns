@@ -24,6 +24,8 @@
 #ifdef HAVE_CONFIG_H
 # include "config.h"
 #endif
+#include "platform.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,6 +48,22 @@
 #ifndef HAVE_GETOPT
 # include "getopt.c"
 #endif
+
+#ifdef HAVE_STRERROR_S
+
+static char *check_strerror(char *buffer, size_t numberOfBytes, int error) {
+  buffer[0] = '\0';
+  (void)strerror_s(buffer, numberOfBytes, error);
+  return buffer;
+}
+
+#else /* HAVE_STRERROR_S */
+
+static char *check_strerror(char *buffer, size_t numberOfBytes, int error) {
+  return strerror(error);
+}
+
+#endif /* HAVE_STRERROR_S */
 
 static const char *version = "udns-rblcheck 0.2";
 static char *progname;
@@ -113,7 +131,12 @@ static void addzone(const char *zone) {
 }
 
 static int addzonefile(const char *fname) {
+#ifdef HAVE_FOPEN_S
+  FILE *f = NULL;
+  errno_t error = fopen_s(&f, fname, "r");
+#else
   FILE *f = fopen(fname, "r");
+#endif /* HAVE_FOPEN_S */
   char linebuf[2048];
   if (!f)
     return 0;
@@ -288,6 +311,7 @@ int main(int argc, char **argv) {
   struct ipcheck ipc;
   char *nameserver = NULL;
   int zgiven = 0;
+  char errorBuffer[1024];
 
   if (!(progname = strrchr(argv[0], '/'))) progname = argv[0];
   else argv[0] = ++progname;
@@ -328,23 +352,53 @@ int main(int argc, char **argv) {
   }
 
   if (!zgiven) {
+#ifdef HAVE_DUPENV_S
+    char *s = NULL;
+    size_t numberOfElements = 0;
+    errno_t error = _dupenv_s(&s, &numberOfElements, "RBLCHECK_ZONES");
+#else
     char *s = getenv("RBLCHECK_ZONES");
+#endif /* HAVE_DUPENV_S */
     if (s) {
+#ifdef HAVE_STRTOK_S
+      char *context = NULL;
+#endif /* HAVE_STRTOK_S */
       char *k;
+#ifndef HAVE_DUPENV_S
       s = strdup(s);
-      for(k = strtok(s, " \t"); k; k = strtok(NULL, " \t"))
+#endif /* ndef HAVE_DUPENV_S */
+#ifdef HAVE_STRTOK_S
+      for (k = strtok_s(s, " \t", &context); k; k = strtok_s(NULL, " \t", &context))
+#else
+      for (k = strtok(s, " \t"); k; k = strtok(NULL, " \t"))
+#endif /* HAVE_STRTOK_S */
         addzone(k);
       free(s);
     }
     else {	/* probably worthless on windows? */
       char *path;
+#ifdef HAVE_DUPENV_S
+      char *tmphome = NULL;
+      char *home = NULL;
+      size_t numberOfElements = 0;
+      errno_t error = _dupenv_s(&tmphome, &numberOfElements, "HOME");
+      home = tmphome;
+#else
       char *home = getenv("HOME");
+#endif /* HAVE_DUPENV_S */
       if (!home) home = ".";
-      path = malloc(strlen(home) + 1 + sizeof(".rblcheckrc"));
+      path = malloc(strlen(home) + 1 + strlen(".rblcheckrc"));
+#ifdef HAVE_SPRINTF_S
+      sprintf_s(path, (strlen(home) + 1 + strlen(".rblcheckrc")), "%s/.rblcheckrc", home);
+#else
       sprintf(path, "%s/.rblcheckrc", home);
+#endif /* HAVE_SPRINTF_S */
       if (!addzonefile(path))
         addzonefile("/etc/rblcheckrc");
       free(path);
+#ifdef HAVE_DUPENV_S
+      free(tmphome);
+#endif /* HAVE_DUPENV_S */
     }
   }
   if (!nzones)
@@ -357,14 +411,14 @@ int main(int argc, char **argv) {
     return 0;
 
   if (dns_init(NULL, 0) < 0)
-    error(1, "unable to initialize DNS library: %s", strerror(errno));
+    error(1, "unable to initialize DNS library: %s", check_strerror(errorBuffer, sizeof(errorBuffer), errno));
   if (nameserver) {
     dns_add_serv(NULL, NULL);
     if (dns_add_serv(NULL, nameserver) < 0)
       error(1, "wrong IP address for a nameserver: `%s'", nameserver);
   }
   if (dns_open(NULL) < 0)
-    error(1, "unable to initialize DNS library: %s", strerror(errno));
+    error(1, "unable to initialize DNS library: %s", check_strerror(errorBuffer, sizeof(errorBuffer), errno));
 
   for (c = 0; c < argc; ++c) {
     if (c && (verbose > 1 || (verbose == 1 && do_txt))) putchar('\n');

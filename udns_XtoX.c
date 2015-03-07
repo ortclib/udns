@@ -27,6 +27,7 @@
 # include "config.h"
 #endif
 #include "udns.h"
+#include "platform.h"
 
 #ifdef HAVE_INET_PTON_NTOP
 

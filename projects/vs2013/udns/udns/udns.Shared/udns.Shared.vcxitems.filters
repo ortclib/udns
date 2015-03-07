@@ -12,6 +12,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns.h">
       <Filter>udns</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\..\platform.h">
+      <Filter>udns</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)..\..\..\..\..\configure">
