@@ -168,7 +168,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastUpgradeCheck = 0610;
-				ORGANIZATIONNAME = "SMB Phone Inc.";
+				ORGANIZATIONNAME = "Hookflash Inc.";
 			};
 			buildConfigurationList = 0066820016C9D91300259F81 /* Build configuration list for PBXProject "udns" */;
 			compatibilityVersion = "Xcode 3.2";
