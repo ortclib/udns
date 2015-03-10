@@ -7,22 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0066828516C9DAE600259F81 /* inet_XtoX.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066826916C9DAE600259F81 /* inet_XtoX.c */; };
+		0066828516C9DAE600259F81 /* inet_XtoX.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066826916C9DAE600259F81 /* inet_XtoX.c */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
 		0066828716C9DAE600259F81 /* udns_bl.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827216C9DAE600259F81 /* udns_bl.c */; };
 		0066828816C9DAE600259F81 /* udns_codes.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827316C9DAE600259F81 /* udns_codes.c */; };
-		0066828916C9DAE600259F81 /* udns_dn.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827416C9DAE600259F81 /* udns_dn.c */; };
+		0066828916C9DAE600259F81 /* udns_dn.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827416C9DAE600259F81 /* udns_dn.c */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
 		0066828A16C9DAE600259F81 /* udns_dntosp.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827516C9DAE600259F81 /* udns_dntosp.c */; };
-		0066828B16C9DAE600259F81 /* udns_init.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827616C9DAE600259F81 /* udns_init.c */; };
+		0066828B16C9DAE600259F81 /* udns_init.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827616C9DAE600259F81 /* udns_init.c */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
 		0066828C16C9DAE600259F81 /* udns_jran.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827716C9DAE600259F81 /* udns_jran.c */; };
 		0066828D16C9DAE600259F81 /* udns_misc.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827816C9DAE600259F81 /* udns_misc.c */; };
-		0066828E16C9DAE600259F81 /* udns_parse.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827916C9DAE600259F81 /* udns_parse.c */; };
-		0066828F16C9DAE600259F81 /* udns_resolver.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827A16C9DAE600259F81 /* udns_resolver.c */; };
+		0066828E16C9DAE600259F81 /* udns_parse.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827916C9DAE600259F81 /* udns_parse.c */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
+		0066828F16C9DAE600259F81 /* udns_resolver.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827A16C9DAE600259F81 /* udns_resolver.c */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
 		0066829016C9DAE600259F81 /* udns_rr_a.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827B16C9DAE600259F81 /* udns_rr_a.c */; };
 		0066829116C9DAE600259F81 /* udns_rr_mx.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827C16C9DAE600259F81 /* udns_rr_mx.c */; };
 		0066829216C9DAE600259F81 /* udns_rr_naptr.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827D16C9DAE600259F81 /* udns_rr_naptr.c */; };
 		0066829316C9DAE600259F81 /* udns_rr_ptr.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827E16C9DAE600259F81 /* udns_rr_ptr.c */; };
 		0066829416C9DAE600259F81 /* udns_rr_srv.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066827F16C9DAE600259F81 /* udns_rr_srv.c */; };
-		0066829516C9DAE600259F81 /* udns_rr_txt.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066828016C9DAE600259F81 /* udns_rr_txt.c */; };
+		0066829516C9DAE600259F81 /* udns_rr_txt.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066828016C9DAE600259F81 /* udns_rr_txt.c */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
 		0066829616C9DAE600259F81 /* udns_XtoX.c in Sources */ = {isa = PBXBuildFile; fileRef = 0066828116C9DAE600259F81 /* udns_XtoX.c */; };
 /* End PBXBuildFile section */
 
