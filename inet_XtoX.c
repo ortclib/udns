@@ -79,7 +79,7 @@ struct in_addr {	/* declare it here to avoid messing with headers */
 #ifndef inet_XtoX_no_ntop
 
 inet_XtoX_decl const char *
-fn(ntop)(int af, const void *src, char *dst, unsigned size);
+fn(ntop)(int af, const void *src, char *dst, int size);
 
 #ifndef inet_XtoX_prototypes
 
@@ -156,7 +156,7 @@ static int mjt_ntop6(const void *_src, char *dst, int size) {
 }
 
 inet_XtoX_decl const char *
-fn(ntop)(int af, const void *src, char *dst, unsigned size) {
+fn(ntop)(int af, const void *src, char *dst, int size) {
   switch(af) {
   /* don't use AF_*: don't mess with headers */
   case 2:  /* AF_INET */  if (mjt_ntop4(src, dst, size)) return dst; break;

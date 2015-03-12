@@ -26,9 +26,6 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <ItemGroup>
-    <None Include="..\udns.WindowsPhone\udns.WindowsPhone.vcxproj" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3c9c21f5-54be-4c18-ac96-f28a43ef2844}</ProjectGuid>
     <RootNamespace>udns</RootNamespace>

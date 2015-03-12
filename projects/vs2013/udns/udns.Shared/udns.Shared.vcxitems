@@ -17,112 +17,112 @@
     <ProjectCapability Include="SourceItemsFromImports" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\..\config.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\..\platform.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\config.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\platform.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\udns.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\..\configure">
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\configure">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </None>
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\..\COPYING.LGPL">
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\COPYING.LGPL">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </None>
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\..\dnsget.1">
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\dnsget.1">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </None>
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\..\Makefile.in">
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\Makefile.in">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </None>
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\..\NEWS">
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\NEWS">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </None>
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\..\NOTES">
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\NOTES">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </None>
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\..\rblcheck.1">
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\rblcheck.1">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </None>
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\..\TODO">
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\TODO">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </None>
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns.3">
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\udns.3">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Library Include="$(MSBuildThisFileDirectory)..\..\..\..\..\configure.lib">
+    <Library Include="$(MSBuildThisFileDirectory)..\..\..\..\configure.lib">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </Library>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\dnsget.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\dnsget.c">
       <CompileAsWinRT>false</CompileAsWinRT>
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\ex-rdns.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\ex-rdns.c">
       <CompileAsWinRT>false</CompileAsWinRT>
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\getopt.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\getopt.c">
       <CompileAsWinRT>false</CompileAsWinRT>
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\inet_XtoX.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\inet_XtoX.c">
       <CompileAsWinRT>false</CompileAsWinRT>
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\rblcheck.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\rblcheck.c">
       <CompileAsWinRT>false</CompileAsWinRT>
       <ExcludedFromBuild>true</ExcludedFromBuild>
       <DisableSpecificWarnings>4090</DisableSpecificWarnings>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_bl.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_bl.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_codes.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_codes.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_dn.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_dn.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_dntosp.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_dntosp.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_init.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_init.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_jran.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_jran.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_misc.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_misc.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_parse.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_parse.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_resolver.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_resolver.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_rr_a.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_a.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_rr_mx.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_mx.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_rr_naptr.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_naptr.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_rr_ptr.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_ptr.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_rr_srv.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_srv.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_rr_txt.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_txt.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\..\udns_XtoX.c">
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_XtoX.c">
       <CompileAsWinRT>false</CompileAsWinRT>
     </ClCompile>
   </ItemGroup>

@@ -1,0 +1,118 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="udns">
+      <UniqueIdentifier>{6f483eb8-e592-4203-8f2e-6d3d4ed5c9de}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\config.h">
+      <Filter>udns</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\udns.h">
+      <Filter>udns</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\..\..\..\platform.h">
+      <Filter>udns</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\configure">
+      <Filter>udns</Filter>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\COPYING.LGPL">
+      <Filter>udns</Filter>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\dnsget.1">
+      <Filter>udns</Filter>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\Makefile.in">
+      <Filter>udns</Filter>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\NEWS">
+      <Filter>udns</Filter>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\NOTES">
+      <Filter>udns</Filter>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\rblcheck.1">
+      <Filter>udns</Filter>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\TODO">
+      <Filter>udns</Filter>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\..\udns.3">
+      <Filter>udns</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="$(MSBuildThisFileDirectory)..\..\..\..\configure.lib">
+      <Filter>udns</Filter>
+    </Library>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\dnsget.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\ex-rdns.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\getopt.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\inet_XtoX.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\rblcheck.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_bl.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_codes.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_dn.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_dntosp.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_init.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_jran.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_misc.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_parse.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_resolver.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_a.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_mx.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_naptr.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_ptr.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_srv.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_rr_txt.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\..\..\udns_XtoX.c">
+      <Filter>udns</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
