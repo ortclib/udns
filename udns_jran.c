@@ -4,6 +4,7 @@
  */
 
 #include "udns.h"
+#include "platform.h"
 
 #define rot32(x,k) (((x) << (k)) | ((x) >> (32-(k))))
 #define rot64(x,k) (((x) << (k)) | ((x) >> (64-(k))))

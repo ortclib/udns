@@ -24,10 +24,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include "udns.h"
+#include "platform.h"
+
 #ifndef WINDOWS
 # include <sys/types.h>
 #endif
-#include "udns.h"
 
 /* here, we use common routine to parse both IPv4 and IPv6 addresses.
  */

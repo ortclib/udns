@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "udns.h"
+#include "platform.h"
 
 int
 dns_parse_txt(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,

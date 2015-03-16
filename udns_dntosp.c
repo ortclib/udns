@@ -22,6 +22,7 @@
  */
 
 #include "udns.h"
+#include "platform.h"
 
 static char name[DNS_MAXNAME];
 

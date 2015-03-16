@@ -46,6 +46,11 @@
 #include <resolv.h>
 #endif /* HAVE_RES_INIT */
 
+#if defined(HAVE_DHCPREQUESTPARAMS) || defined(HAVE_DHCPV6REQUESTPARAMS)
+//#include <dhcpcsdk.h>
+//#pragma comment( lib, "dhcpcsvc.lib" )
+#endif //defined(HAVE_DHCPREQUESTPARAMS) || defined(HAVE_DHCPV6REQUESTPARAMS)
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -295,6 +300,14 @@ static int dns_init_resconf(struct dns_ctx *ctx) {
 
 #endif /* HAVE_RES_INIT */
 
+#ifdef HAVE_DHCPREQUESTPARAMS
+static int dns_init_dhcp(struct dns_ctx *ctx) {
+  return -1;
+}
+#else /* HAVE_DHCPREQUESTPARAMS */
+#define dns_init_dhcp(ctx) (-1)
+#endif /* HAVE_DHCPREQUESTPARAMS */
+
 
 int dns_init_install_back_resolver(struct dns_ctx *ctx) {
   // http://code.google.com/speed/public-dns/docs/using.html
@@ -313,7 +326,9 @@ int dns_init(struct dns_ctx *ctx, int do_open) {
   dns_reset(ctx);
 
   if (dns_initns_iphlpapi(ctx) < 0) {
-    (void)dns_initns_registry(ctx);
+    if (dns_init_dhcp(ctx) < 0) {
+      (void)dns_initns_registry(ctx);
+    }
   }
   (void)dns_init_resolvconf(ctx);
   (void)dns_init_resconf(ctx);

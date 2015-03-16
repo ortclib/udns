@@ -26,6 +26,7 @@
 #endif
 
 #include "udns.h"
+#include "platform.h"
 
 #ifdef WINDOWS
 # include <winsock2.h>          /* includes <windows.h> */

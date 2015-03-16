@@ -23,6 +23,7 @@
 
 #include <string.h>
 #include "udns.h"
+#include "platform.h"
 
 unsigned dns_dnlen(dnscc_t *dn) {
   register dnscc_t *d = dn;

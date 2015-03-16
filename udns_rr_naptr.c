@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "udns.h"
+#include "platform.h"
 
 /* Get a single string for NAPTR record, pretty much like a DN label.
  * String length is in first byte in *cur, so it can't be >255.

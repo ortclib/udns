@@ -1,5 +1,6 @@
 /* Automatically generated. */
 #include "udns.h"
+#include "platform.h"
 
 const struct dns_nameval dns_typetab[] = {
  {DNS_T_INVALID,"INVALID"},

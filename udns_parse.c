@@ -24,6 +24,7 @@
 #include <string.h>
 #include <assert.h>
 #include "udns.h"
+#include "platform.h"
 
 dnscc_t *dns_skipdn(dnscc_t *cur, dnscc_t *end) {
   unsigned c;
