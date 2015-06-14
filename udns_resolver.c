@@ -251,22 +251,23 @@ enum {
 };
 
 int dns_add_serv(struct dns_ctx *ctx, const char *serv) {
-  union sockaddr_ns *sns;
+  union sockaddr_ns tempAddress;
   SETCTXFRESH(ctx);
   if (!serv)
     return (ctx->dnsc_nserv = 0);
   if (ctx->dnsc_nserv >= DNS_MAXSERV)
     return errno = ENFILE, -1;
-  sns = &ctx->dnsc_serv[ctx->dnsc_nserv];
-  memset(sns, 0, sizeof(*sns));
-  if (dns_pton(AF_INET, serv, &sns->sin.sin_addr) > 0) {
-    sns->sin.sin_family = AF_INET;
-    return ++ctx->dnsc_nserv;
+
+  memset(&tempAddress, 0, sizeof(tempAddress));
+
+  if (dns_pton(AF_INET, serv, &tempAddress.sin.sin_addr) > 0) {
+    tempAddress.sin.sin_family = AF_INET;
+    return dns_add_serv_s(ctx, &(tempAddress.sa));
   }
 #ifdef HAVE_IPv6
-  if (dns_pton(AF_INET6, serv, &sns->sin6.sin6_addr) > 0) {
-    sns->sin6.sin6_family = AF_INET6;
-    return ++ctx->dnsc_nserv;
+  if (dns_pton(AF_INET6, serv, &tempAddress.sin6.sin6_addr) > 0) {
+    tempAddress.sin6.sin6_family = AF_INET6;
+    return dns_add_serv_s(ctx, &(tempAddress.sa));
   }
 #endif
   errno = EINVAL;
@@ -274,9 +275,30 @@ int dns_add_serv(struct dns_ctx *ctx, const char *serv) {
 }
 
 int dns_add_serv_s(struct dns_ctx *ctx, const struct sockaddr *sa) {
+  unsigned loop = 0;
+
   SETCTXFRESH(ctx);
   if (!sa)
     return (ctx->dnsc_nserv = 0);
+
+  /* search for duplicate addresses */
+  for (loop = 0; loop < ctx->dnsc_nserv; ++loop) {
+    if (ctx->dnsc_serv[loop].sa.sa_family != sa->sa_family) continue;
+
+#ifdef HAVE_IPv6
+    if (sa->sa_family == AF_INET6) {
+      if (0 == memcmp(&(ctx->dnsc_serv[loop].sin6), (struct sockaddr_in6*)sa, sizeof(struct sockaddr_in6))) {
+        return ctx->dnsc_nserv;
+      }
+    } else
+#endif
+    if (sa->sa_family == AF_INET) {
+      if (0 == memcmp(&(ctx->dnsc_serv[loop].sin), (struct sockaddr_in*)sa, sizeof(struct sockaddr_in))) {
+        return ctx->dnsc_nserv;
+      }
+    }
+  }
+
   if (ctx->dnsc_nserv >= DNS_MAXSERV)
     return errno = ENFILE, -1;
 #ifdef HAVE_IPv6
@@ -585,6 +607,16 @@ int dns_open(struct dns_ctx *ctx) {
       return -1;
     }
   }
+  {
+    DWORD ipv6only = 0;
+    if (have_inet6) {
+      if (SOCKET_ERROR == setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)(&ipv6only), sizeof(ipv6only))) {
+        closesocket(sock);
+        ctx->dnsc_qstatus = DNS_E_TEMPFAIL;
+        return -1;
+      }
+    }
+  }
 #else	/* !WINDOWS */
   if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) | O_NONBLOCK) < 0 ||
       fcntl(sock, F_SETFD, FD_CLOEXEC) < 0) {
@@ -834,6 +866,8 @@ dns_send_this(struct dns_ctx *ctx, struct dns_query *q,
      * and find which operation/query failed.
      *XXX try the next server too? (if ENETUNREACH is returned immediately)
      */
+    int lastError = WSAGetLastError();
+
     if (--tries) continue;
     /* if we can't send the query, fail it. */
     dns_end_query(ctx, q, DNS_E_TEMPFAIL, 0);

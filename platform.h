@@ -24,6 +24,7 @@
 #ifdef HAVE_IPv6
 #define HAVE_DHCPV6REQUESTPARAMS 1
 #endif //HAVE_IPv6
+#define HAVE_WSALOOKUPSERVICE 1
 
 #define HAVE_POLL 1
 
@@ -62,6 +63,7 @@
 
 /* not expected to exist */
 #undef HAVE_IPHLPAPI_H
+#undef HAVE_WSALOOKUPSERVICE
 #undef HAVE_REGKEY
 #undef HAVE_FOPEN_S
 #undef HAVE_DUPENV_S

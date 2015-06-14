@@ -33,7 +33,12 @@
 
 #ifdef HAVE_IPHLPAPI_H
 # include <iphlpapi.h>		/* for dns server addresses etc */
+#pragma comment(lib, "Iphlpapi.lib")
 #endif /* HAVE_IPHLPAPI_H */
+
+#ifdef HAVE_WSALOOKUPSERVICE
+#include <SvcGuid.h>
+#endif /* HAVE_WSALOOKUPSERVICE */
 
 # include <tchar.h>
 #else
@@ -86,12 +91,97 @@ static void dns_set_srch_internal(struct dns_ctx *ctx, char *srch) {
  * this: compile with -DNO_IPHLPAPI.
  */
 
+#if 0
 typedef DWORD (WINAPI *GetAdaptersAddressesFunc)(
   ULONG Family, DWORD Flags, PVOID Reserved,
   PIP_ADAPTER_ADDRESSES pAdapterAddresses,
   PULONG pOutBufLen);
-
+#endif
+  
 static int dns_initns_iphlpapi(struct dns_ctx *ctx) {
+  /* https://msdn.microsoft.com/en-us/library/windows/desktop/aa365915(v=vs.85).aspx */
+
+  int ret = -1;
+
+#undef MALLOC
+#undef FREE
+
+#define WORKING_BUFFER_SIZE 15000
+#define MAX_TRIES 3
+
+#define MALLOC(x) HeapAlloc(GetProcessHeap(), 0, (x))
+#define FREE(x) HeapFree(GetProcessHeap(), 0, (x))
+
+  ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_FRIENDLY_NAME;
+
+  DWORD dwSize = 0;
+  DWORD dwRetVal = 0;
+
+  ULONG family = AF_UNSPEC;
+
+  LPVOID lpMsgBuf = NULL;
+
+  PIP_ADAPTER_ADDRESSES pAddresses = NULL;
+
+  // Allocate a 15 KB buffer to start with.
+  ULONG outBufLen = WORKING_BUFFER_SIZE;
+  ULONG Iterations = 0;
+
+  PIP_ADAPTER_ADDRESSES pCurrAddresses = NULL;
+  //PIP_ADAPTER_UNICAST_ADDRESS pUnicast = NULL;
+  //PIP_ADAPTER_ANYCAST_ADDRESS pAnycast = NULL;
+  //PIP_ADAPTER_MULTICAST_ADDRESS pMulticast = NULL;
+  IP_ADAPTER_DNS_SERVER_ADDRESS *pDnServer = NULL;
+  //IP_ADAPTER_PREFIX *pPrefix = NULL;
+
+  outBufLen = WORKING_BUFFER_SIZE;
+
+  do {
+
+    pAddresses = (IP_ADAPTER_ADDRESSES *)MALLOC(outBufLen);
+    if (NULL == pAddresses) return ret;
+
+    dwRetVal = GetAdaptersAddresses(family, flags, NULL, pAddresses, &outBufLen);
+
+    if (dwRetVal != ERROR_BUFFER_OVERFLOW) break;
+
+    FREE(pAddresses);
+    pAddresses = NULL;
+
+    Iterations++;
+  } while ((dwRetVal == ERROR_BUFFER_OVERFLOW) && (Iterations < MAX_TRIES));
+
+  if (NO_ERROR == dwRetVal) {
+    pCurrAddresses = pAddresses;
+    while (pCurrAddresses) {
+
+      /* discover information about the adapter */
+      {
+        switch (pCurrAddresses->OperStatus) {
+        case IfOperStatusDown:           goto next_address;
+        case IfOperStatusNotPresent:     goto next_address;
+        case IfOperStatusLowerLayerDown: goto next_address;
+        }
+
+        pDnServer = pCurrAddresses->FirstDnsServerAddress;
+
+        while (pDnServer) {
+          ret = 0;
+          dns_add_serv_s(ctx, pDnServer->Address.lpSockaddr);
+
+          pDnServer = pDnServer->Next;
+        }
+      }
+
+    next_address:
+      {
+        pCurrAddresses = pCurrAddresses->Next;
+      }
+    }
+  }
+
+  FREE(pAddresses);
+#if 0
   HANDLE h_iphlpapi;
   GetAdaptersAddressesFunc pfnGetAdAddrs;
   PIP_ADAPTER_ADDRESSES pAddr, pAddrBuf;
@@ -123,6 +213,7 @@ freemem:
   free(pAddrBuf);
 freelib:
   FreeLibrary((HMODULE)h_iphlpapi);
+#endif
   return ret;
 }
 
@@ -308,6 +399,99 @@ static int dns_init_dhcp(struct dns_ctx *ctx) {
 #define dns_init_dhcp(ctx) (-1)
 #endif /* HAVE_DHCPREQUESTPARAMS */
 
+#ifdef HAVE_WSALOOKUPSERVICE
+
+#ifndef SVCID_UDP
+#define SVCID_UDP(_Port) \
+                          { (0x000A << 16) | (_Port), 0, 0, { 0xC0,0,0,0,0,0,0,0x46 } }
+#endif /* ndef SVCID_UDP */
+
+#ifndef SVCID_NAMESERVER_UDP
+#define SVCID_NAMESERVER_UDP          SVCID_UDP( 53 )   
+#endif /* ndef SVCID_UDP */
+
+static int dns_init_wsalookupservice(struct dns_ctx *ctx) {
+  /* from: http://www.binarytides.com/dns-query-code-in-c-with-winsock/ */
+
+#undef MALLOC
+#undef FREE
+
+//#undef WORKING_BUFFER_SIZE
+//#undef MAX_TRIES
+
+//#define WORKING_BUFFER_SIZE 15000
+//#define MAX_TRIES 3
+
+#define MALLOC(x) HeapAlloc(GetProcessHeap(), 0, (x))
+#define FREE(x) HeapFree(GetProcessHeap(), 0, (x))
+
+  int ret = -1;
+  int iCount = 0;
+  GUID guid = SVCID_NAMESERVER_UDP;
+
+//  WSAQUERYSETW 
+  WSAQUERYSETW qs = { 0 };
+
+  qs.dwSize = sizeof(WSAQUERYSETW);
+  qs.dwNameSpace = NS_DNS;
+  qs.lpServiceClassId = &guid;
+
+  HANDLE hLookup = NULL;
+  int nRet = WSALookupServiceBeginW(&qs, LUP_RETURN_NAME | LUP_RETURN_ADDR, &hLookup);
+  if (nRet == SOCKET_ERROR)
+  {
+#if 0
+    int iError = WSAGetLastError();
+    ReportError(_T("Error obtaining DNS Server information (%d) %s"),
+      iError, GetWin32ErrorText(iError));
+#endif /* 0 */
+    return ret;
+  }
+
+  // Loop through the services
+  DWORD dwResultLen = 1024;
+  unsigned char* pResultBuf = MALLOC(sizeof(unsigned char)*dwResultLen);
+
+  while (TRUE)
+  {
+    nRet = WSALookupServiceNext(hLookup, LUP_RETURN_NAME | LUP_RETURN_ADDR, &dwResultLen, (WSAQUERYSETW*)pResultBuf);
+    if (nRet == SOCKET_ERROR)
+    {
+      // Buffer too small?
+      if (WSAGetLastError() == WSAEFAULT)
+      {
+        FREE(pResultBuf);
+        pResultBuf = MALLOC(sizeof(unsigned char)*dwResultLen);
+        continue;
+      }
+      break;
+    }
+
+    WSAQUERYSETW* pqs = (LPWSAQUERYSETW)pResultBuf;
+    CSADDR_INFO* pcsa = pqs->lpcsaBuffer;
+
+    // Loop through the CSADDR_INFO array
+    for (int x = 0; x < (int)pqs->dwNumberOfCsAddrs; x++)
+    {
+      ret = 0;
+      dns_add_serv_s(ctx, pcsa->RemoteAddr.lpSockaddr);
+
+      pcsa++;
+    }
+  }
+
+  // Clean up
+  WSALookupServiceEnd(hLookup);
+  FREE(pResultBuf);
+
+  return ret;
+}
+#else /* HAVE_WSALOOKUPSERVICE */
+#define dns_init_wsalookupservice(ctx) (-1)
+#endif /* HAVE_WSALOOKUPSERVICE */
+
+//SVCID_NAMESERVER_UDP
+
 
 int dns_init_install_back_resolver(struct dns_ctx *ctx) {
   // http://code.google.com/speed/public-dns/docs/using.html
@@ -324,10 +508,12 @@ int dns_init(struct dns_ctx *ctx, int do_open) {
     ctx = &dns_defctx;
 
   dns_reset(ctx);
-
+  
   if (dns_initns_iphlpapi(ctx) < 0) {
-    if (dns_init_dhcp(ctx) < 0) {
-      (void)dns_initns_registry(ctx);
+    if (dns_init_wsalookupservice(ctx) < 0) {
+      if (dns_init_dhcp(ctx) < 0) {
+        (void)dns_initns_registry(ctx);
+      }
     }
   }
   (void)dns_init_resolvconf(ctx);
