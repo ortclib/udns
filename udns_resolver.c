@@ -866,7 +866,6 @@ dns_send_this(struct dns_ctx *ctx, struct dns_query *q,
      * and find which operation/query failed.
      *XXX try the next server too? (if ENETUNREACH is returned immediately)
      */
-    int lastError = WSAGetLastError();
 
     if (--tries) continue;
     /* if we can't send the query, fail it. */
