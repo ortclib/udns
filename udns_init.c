@@ -36,9 +36,9 @@
 #pragma comment(lib, "Iphlpapi.lib")
 #endif /* HAVE_IPHLPAPI_H */
 
-#ifdef HAVE_WSALOOKUPSERVICE
+#ifdef HAVE_SVCGUID_H
 #include <SvcGuid.h>
-#endif /* HAVE_WSALOOKUPSERVICE */
+#endif /* HAVE_SVCGUID_H */
 
 # include <tchar.h>
 #else
