@@ -54,6 +54,10 @@
 
 #include <sys/types.h>		/* for time_t */
 
+#ifdef WINDOWS
+#include <time.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
