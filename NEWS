@@ -1,6 +1,14 @@
 NEWS
 User-visible changes in udns library.  Recent changes on top.
 
+0.3 (Jan 2014)
+
+ - bugfix: refactor double-linked list implementation in udns_resolver.c
+   (internal to the library) to be more strict-aliasing-friendly, because
+   old code were miscompiled by gcc.
+
+ - bugfix: forgotten strdup() in rblcheck
+
 0.2 (Dec 2011)
 
  - bugfix: SRV RR handling: fix domain name parsing and crash in case

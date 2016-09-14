@@ -21,7 +21,7 @@
 # Suite 330, Boston, MA  02111-1307  USA
 
 NAME   = udns
-VERS   = 0.2
+VERS   = 0.3
 SOVER  = 0
 
 SRCS   = udns_dn.c udns_dntosp.c udns_parse.c udns_resolver.c udns_init.c \
@@ -55,6 +55,7 @@ CFLAGS = @CFLAGS@
 CDEFS = @CDEFS@
 PICFLAGS = -fPIC
 AWK = awk
+TAR = tar
 
 all: static
 
@@ -113,10 +114,8 @@ udns.3.html: udns.3
 
 dist: $(NAMEPFX).tar.gz
 $(NAMEPFX).tar.gz: $(DIST)
-	mkdir $(NAMEPFX)
-	ln $(DIST) $(NAMEPFX)
-	tar cvfz $@ $(NAMEPFX)
-	rm -rf $(NAMEPFX)
+	$(TAR) -cv -f $@ -z --transform 's|^|$(NAMEPFX)/|' $(DIST)
+
 subdist:
 	cp -p $(DIST) $(TARGET)/
 

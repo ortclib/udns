@@ -74,6 +74,14 @@ int main(int argc, char **argv) {
 }
 EOF
 
+if ac_library_find_v 'socket and connect' "" "-lsocket -lnsl" <<EOF
+int main() { socket(); connect(); return 0; }
+EOF
+then :
+else
+  ac_fatal "cannot find libraries needed for sockets"
+fi
+
 ac_ign \
  ac_yesno "for inet_pton() && inet_ntop()" \
  ac_have INET_PTON_NTOP \
@@ -97,14 +105,6 @@ EOF
 then :
 else
   ac_define socklen_t int
-fi
-
-if ac_library_find_v 'socket and connect' "" "-lsocket -lnsl" <<EOF
-int main() { socket(); connect(); return 0; }
-EOF
-then :
-else
-  ac_fatal "cannot find libraries needed for sockets"
 fi
 
 if [ n != "$enable_ipv6" ]; then
