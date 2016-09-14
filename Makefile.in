@@ -21,7 +21,7 @@
 # Suite 330, Boston, MA  02111-1307  USA
 
 NAME   = udns
-VERS   = 0.3
+VERS   = 0.4
 SOVER  = 0
 
 SRCS   = udns_dn.c udns_dntosp.c udns_parse.c udns_resolver.c udns_init.c \
@@ -42,8 +42,6 @@ SOLIB  = lib$(NAME)_s.so
 SOLIBV = lib$(NAME).so.$(SOVER)
 SOLIBFL= -L. -l$(NAME)_s
 
-LIBS   = $(LIB) $(SOLIBV)
-
 UTILS   = $(USRCS:.c=)
 UOBJS   = $(USRCS:.c=.o)
 SOUTILS = $(USRCS:.c=_s)
@@ -53,6 +51,10 @@ NAMEPFX = $(NAME)-$(VERS)
 CC = @CC@
 CFLAGS = @CFLAGS@
 CDEFS = @CDEFS@
+LD = @LD@
+LDFLAGS = @LDFLAGS@
+LIBS = @LIBS@
+LDSHARED = $(LD) -shared
 PICFLAGS = -fPIC
 AWK = awk
 TAR = tar
@@ -73,7 +75,7 @@ shared: $(SOLIBV) $(SOUTILS)
 sharedlib: $(SOLIBV)
 
 $(SOLIBV): $(SOBJS)
-	$(CC) -shared -Wl,--soname,$(SOLIBV) -o $@ $(SOBJS)
+	$(LDSHARED) -Wl,--soname,$(SOLIBV) -o $@ $(SOBJS) $(LDFLAGS) $(LIBS)
 $(SOLIB): $(SOLIBV)
 	rm -f $@
 	ln -s $(SOLIBV) $@
@@ -125,7 +127,7 @@ clean:
 	rm -f $(UOBJS)
 	rm -f config.log
 distclean: clean
-	rm -f $(LIBS) $(SOLIB) udns.3.html
+	rm -f $(LIB) $(SOLIB) $(SOLIBV) udns.3.html
 	rm -f $(UTILS) $(SOUTILS)
 	rm -f config.status config.h Makefile
 
@@ -151,9 +153,9 @@ depend dep deps: $(SRCS) $(USRC)
 	done >> Makefile.tmp; \
 	for f in $(USRCS:.c=.o); do \
 	 echo "$${f%.?}: $$f \$$(LIB)"; \
-	 echo "	\$$(CC) \$$(CFLAGS) -o \$$@ $$f \$$(LIBFL)"; \
+	 echo "	\$$(LD) \$$(LDLAGS) -o \$$@ $$f \$$(LIBFL) \$$(LIBS)"; \
 	 echo "$${f%.?}_s: $$f \$$(SOLIB)"; \
-	 echo "	\$$(CC) \$$(CFLAGS) -o \$$@ $$f \$$(SOLIBFL)"; \
+	 echo "	\$$(LD) \$$(LDFLAGS) -o \$$@ $$f \$$(SOLIBFL)"; \
 	done >> Makefile.tmp ; \
 	if cmp Makefile.tmp Makefile.in >/dev/null 2>&1 ; then \
 	 echo Makefile.in unchanged; rm -f Makefile.tmp; \
@@ -182,14 +184,14 @@ dnsget.o dnsget.lo: dnsget.c config.h udns.h getopt.c
 rblcheck.o rblcheck.lo: rblcheck.c config.h udns.h getopt.c
 ex-rdns.o ex-rdns.lo: ex-rdns.c udns.h
 dnsget: dnsget.o $(LIB)
-	$(CC) $(CFLAGS) -o $@ dnsget.o $(LIBFL)
+	$(LD) $(LDLAGS) -o $@ dnsget.o $(LIBFL) $(LIBS)
 dnsget_s: dnsget.o $(SOLIB)
-	$(CC) $(CFLAGS) -o $@ dnsget.o $(SOLIBFL)
+	$(LD) $(LDFLAGS) -o $@ dnsget.o $(SOLIBFL)
 rblcheck: rblcheck.o $(LIB)
-	$(CC) $(CFLAGS) -o $@ rblcheck.o $(LIBFL)
+	$(LD) $(LDLAGS) -o $@ rblcheck.o $(LIBFL) $(LIBS)
 rblcheck_s: rblcheck.o $(SOLIB)
-	$(CC) $(CFLAGS) -o $@ rblcheck.o $(SOLIBFL)
+	$(LD) $(LDFLAGS) -o $@ rblcheck.o $(SOLIBFL)
 ex-rdns: ex-rdns.o $(LIB)
-	$(CC) $(CFLAGS) -o $@ ex-rdns.o $(LIBFL)
+	$(LD) $(LDLAGS) -o $@ ex-rdns.o $(LIBFL) $(LIBS)
 ex-rdns_s: ex-rdns.o $(SOLIB)
-	$(CC) $(CFLAGS) -o $@ ex-rdns.o $(SOLIBFL)
+	$(LD) $(LDFLAGS) -o $@ ex-rdns.o $(SOLIBFL)

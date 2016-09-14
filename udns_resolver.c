@@ -106,9 +106,9 @@ static __inline void qlist_remove(struct dns_qlist *list, struct dns_query *q) {
 static __inline void
 qlist_add_head(struct dns_qlist *list, struct dns_query *q) {
   q->dnsq_next = list->head;
-  list->head = q;
   if (list->head) list->head->dnsq_prev = q;
   else list->tail = q;
+  list->head = q;
   q->dnsq_prev = NULL;
 }
 

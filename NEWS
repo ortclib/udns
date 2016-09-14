@@ -1,6 +1,11 @@
 NEWS
 User-visible changes in udns library.  Recent changes on top.
 
+0.4 (Jan 2014)
+
+ - bugfix: fix a bug in new list code introduced in 0.3
+ - portability: use $(LD)/$(LDFLAGS)/$(LIBS)
+
 0.3 (Jan 2014)
 
  - bugfix: refactor double-linked list implementation in udns_resolver.c
