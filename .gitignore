@@ -4,3 +4,6 @@ xcuserdata
 [Rr]elease
 *.sdf
 *.opensdf
+*.db
+*.opendb
+.vs/
