@@ -22,6 +22,7 @@
  */
 
 #include "udns.h"
+#include "platform.h"
 
 int dns_findname(const struct dns_nameval *nv, const char *name) {
   register const char *a, *b;

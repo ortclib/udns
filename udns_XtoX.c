@@ -27,6 +27,7 @@
 # include "config.h"
 #endif
 #include "udns.h"
+#include "platform.h"
 
 #ifdef HAVE_INET_PTON_NTOP
 
@@ -44,7 +45,7 @@ int dns_pton(int af, const char *src, void *dst) {
 
 #else
 
-#define inet_XtoX_prefix udns_
+#define inet_XtoX_prefix dns_
 #include "inet_XtoX.c"
 
 #endif

@@ -21,9 +21,17 @@
 
  */
 
+#pragma once
+
 #ifndef UDNS_VERSION	/* include guard */
 
 #define UDNS_VERSION "0.4"
+
+#ifdef _WIN32
+# ifndef WINDOWS
+#  define WINDOWS
+# endif /* ndef WINDOWS */
+#endif /* _WIN32 */
 
 #ifdef WINDOWS
 # ifdef UDNS_DYNAMIC_LIBRARY
@@ -34,8 +42,8 @@
 #   define UDNS_API __declspec(dllimport)
 #   define UDNS_DATA_API __declspec(dllimport)
 #  endif
-# endif
-#endif
+# endif /* UDNS_DYNAMIC_LIBRARY */
+#endif /* WINDOWS */
 
 #ifndef UDNS_API
 # define UDNS_API
@@ -45,6 +53,10 @@
 #endif
 
 #include <sys/types.h>		/* for time_t */
+
+#ifdef WINDOWS
+#include <time.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -393,6 +405,10 @@ dns_free(struct dns_ctx *ctx);
 /* add nameserver for a resolver context (or reset nslist if serv==NULL) */
 UDNS_API int
 dns_add_serv(struct dns_ctx *ctx, const char *serv);
+
+/* get the number of nameservers for a resolver context */
+UDNS_API int
+dns_serv_count(struct dns_ctx *ctx);
 
 /* add nameserver using struct sockaddr structure (with ports) */
 UDNS_API int

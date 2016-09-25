@@ -48,9 +48,18 @@ struct in_addr;
 
 #else /* !TEST */
 
+#ifndef EAFNOSUPPORT
+# ifdef WINDOWS
+#  include <winsock2.h>
+#  define EAFNOSUPPORT WSAEAFNOSUPPORT
+# endif //WINDOWS
+#endif //EAFNOSUPPORT
+
+#ifndef WINDOWS
 struct in_addr {	/* declare it here to avoid messing with headers */
   unsigned char x[4];
 };
+#endif //WINDOWS
 
 #endif /* TEST */
 
@@ -70,14 +79,14 @@ struct in_addr {	/* declare it here to avoid messing with headers */
 #ifndef inet_XtoX_no_ntop
 
 inet_XtoX_decl const char *
-fn(ntop)(int af, const void *src, char *dst, unsigned size);
+fn(ntop)(int af, const void *src, char *dst, int size);
 
 #ifndef inet_XtoX_prototypes
 
 static int mjt_ntop4(const void *_src, char *dst, int size) {
   unsigned i, x, r;
   char *p;
-  const unsigned char *s = _src;
+  const unsigned char *s = (const unsigned char*)_src;
   if (size < 4*4)	/* for simplicity, disallow non-max-size buffer */
     return 0;
   for (i = 0, p = dst; i < 4; ++i) {
@@ -92,7 +101,7 @@ static int mjt_ntop4(const void *_src, char *dst, int size) {
 }
 
 static char *hexc(char *p, unsigned x) {
-  static char hex[16] = "0123456789abcdef";
+  static char hex[17] = "0123456789abcdef";
   if (x > 0x0fff) *p++ = hex[(x >>12) & 15];
   if (x > 0x00ff) *p++ = hex[(x >> 8) & 15];
   if (x > 0x000f) *p++ = hex[(x >> 4) & 15];
@@ -106,7 +115,7 @@ static int mjt_ntop6(const void *_src, char *dst, int size) {
   unsigned bs = 0, cs = 0;
   unsigned bl = 0, cl = 0;
   char *p;
-  const unsigned char *s = _src;
+  const unsigned char *s = (const unsigned char*)_src;
 
   if (size < 40)	/* for simplicity, disallow non-max-size buffer */
     return 0;
@@ -147,7 +156,7 @@ static int mjt_ntop6(const void *_src, char *dst, int size) {
 }
 
 inet_XtoX_decl const char *
-fn(ntop)(int af, const void *src, char *dst, unsigned size) {
+fn(ntop)(int af, const void *src, char *dst, int size) {
   switch(af) {
   /* don't use AF_*: don't mess with headers */
   case 2:  /* AF_INET */  if (mjt_ntop4(src, dst, size)) return dst; break;
@@ -157,13 +166,14 @@ fn(ntop)(int af, const void *src, char *dst, unsigned size) {
   errno = ENOSPC;
   return (char*)0;
 }
-
+#ifndef WINDOWS
 inet_XtoX_decl const char *
 fn(ntoa)(struct in_addr addr) {
   static char buf[4*4];
   mjt_ntop4(&addr, buf, sizeof(buf));
   return buf;
 }
+#endif //WINDOWS
 
 #endif /* inet_XtoX_prototypes */
 #endif /* inet_XtoX_no_ntop */
@@ -176,7 +186,7 @@ inet_XtoX_decl int fn(aton)(const char *src, struct in_addr *addr);
 #ifndef inet_XtoX_prototypes
 
 static int mjt_pton4(const char *c, void *dst) {
-  unsigned char *a = dst;
+  unsigned char *a = (unsigned char*)dst;
   unsigned n, o;
   for (n = 0; n < 4; ++n) {
     if (*c < '0' || *c > '9')
@@ -196,7 +206,7 @@ static int mjt_pton6(const char *c, void *dst) {
   unsigned short w[8], *a = w, *z, *i;
   unsigned v, o;
   const char *sc;
-  unsigned char *d = dst;
+  unsigned char *d = (unsigned char*)dst;
   if (*c != ':') z = (unsigned short*)0;
   else if (*++c != ':') return 0;
   else ++c, z = a;

@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "udns.h"
+#include "platform.h"
 
 int
 dns_parse_ptr(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
@@ -54,7 +55,7 @@ dns_parse_ptr(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
     return DNS_E_NODATA;
 
   /* next, allocate and set up result */
-  ret = malloc(sizeof(*ret) + sizeof(char **) * c + l + dns_stdrr_size(&p));
+  ret = (struct dns_rr_ptr*)malloc(sizeof(*ret) + sizeof(char **) * c + l + dns_stdrr_size(&p));
   if (!ret)
     return DNS_E_NOMEM;
   ret->dnsptr_nrr = c;

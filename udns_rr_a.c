@@ -24,11 +24,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include "udns.h"
+#include "platform.h"
+
 #ifndef WINDOWS
 # include <sys/types.h>
-# include <netinet/in.h>
 #endif
-#include "udns.h"
 
 /* here, we use common routine to parse both IPv4 and IPv6 addresses.
  */
@@ -57,7 +58,7 @@ dns_parse_a(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
   else if (!p.dnsp_nrr)
     return DNS_E_NODATA;
 
-  ret = malloc(sizeof(*ret) + dsize * p.dnsp_nrr + dns_stdrr_size(&p));
+  ret = (struct dns_rr_a*)malloc(sizeof(*ret) + dsize * p.dnsp_nrr + dns_stdrr_size(&p));
   if (!ret)
     return DNS_E_NOMEM;
 

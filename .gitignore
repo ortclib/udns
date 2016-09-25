@@ -1,0 +1,6 @@
+*.xcscheme
+xcuserdata
+[Dd]ebug/
+[Rr]elease
+*.sdf
+*.opensdf

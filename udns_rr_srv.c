@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "udns.h"
+#include "platform.h"
 
 int
 dns_parse_srv(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
@@ -60,7 +61,7 @@ dns_parse_srv(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end,
 
   /* next, allocate and set up result */
   l += dns_stdrr_size(&p);
-  ret = malloc(sizeof(*ret) + sizeof(struct dns_srv) * p.dnsp_nrr + l);
+  ret = (struct dns_rr_srv*)malloc(sizeof(*ret) + sizeof(struct dns_srv) * p.dnsp_nrr + l);
   if (!ret)
     return DNS_E_NOMEM;
   ret->dnssrv_nrr = p.dnsp_nrr;
