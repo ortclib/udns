@@ -1,0 +1,349 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0022EABD1D989D10002FCECF /* inet_XtoX.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EA9F1D989D10002FCECF /* inet_XtoX.c */; settings = {COMPILER_FLAGS = "-Dinet_XtoX_no_ntop -Wno-shorten-64-to-32"; }; };
+		0022EAC01D989D10002FCECF /* udns_bl.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAA71D989D10002FCECF /* udns_bl.c */; };
+		0022EAC11D989D10002FCECF /* udns_codes.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAA81D989D10002FCECF /* udns_codes.c */; };
+		0022EAC21D989D10002FCECF /* udns_dn.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAA91D989D10002FCECF /* udns_dn.c */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
+		0022EAC31D989D10002FCECF /* udns_dntosp.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAAA1D989D10002FCECF /* udns_dntosp.c */; };
+		0022EAC41D989D10002FCECF /* udns_init.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAAB1D989D10002FCECF /* udns_init.c */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
+		0022EAC51D989D10002FCECF /* udns_jran.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAAC1D989D10002FCECF /* udns_jran.c */; };
+		0022EAC61D989D10002FCECF /* udns_misc.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAAD1D989D10002FCECF /* udns_misc.c */; };
+		0022EAC71D989D10002FCECF /* udns_parse.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAAE1D989D10002FCECF /* udns_parse.c */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
+		0022EAC81D989D10002FCECF /* udns_resolver.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAAF1D989D10002FCECF /* udns_resolver.c */; settings = {COMPILER_FLAGS = "-Wno-conditional-uninitialized -Wno-shorten-64-to-32"; }; };
+		0022EAC91D989D10002FCECF /* udns_rr_a.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAB01D989D10002FCECF /* udns_rr_a.c */; };
+		0022EACA1D989D10002FCECF /* udns_rr_mx.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAB11D989D10002FCECF /* udns_rr_mx.c */; };
+		0022EACB1D989D10002FCECF /* udns_rr_naptr.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAB21D989D10002FCECF /* udns_rr_naptr.c */; };
+		0022EACC1D989D10002FCECF /* udns_rr_ptr.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAB31D989D10002FCECF /* udns_rr_ptr.c */; };
+		0022EACD1D989D10002FCECF /* udns_rr_srv.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAB41D989D10002FCECF /* udns_rr_srv.c */; };
+		0022EACE1D989D10002FCECF /* udns_rr_txt.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAB51D989D10002FCECF /* udns_rr_txt.c */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
+		0022EACF1D989D10002FCECF /* udns_XtoX.c in Sources */ = {isa = PBXBuildFile; fileRef = 0022EAB61D989D10002FCECF /* udns_XtoX.c */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0022EA891D989CE2002FCECF /* libudns-osx.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libudns-osx.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0022EA971D989D10002FCECF /* config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = config.h; path = ../../../config.h; sourceTree = "<group>"; };
+		0022EA981D989D10002FCECF /* configure */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.sh; name = configure; path = ../../../configure; sourceTree = "<group>"; };
+		0022EA991D989D10002FCECF /* configure.lib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = configure.lib; path = ../../../configure.lib; sourceTree = "<group>"; };
+		0022EA9A1D989D10002FCECF /* COPYING.LGPL */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = COPYING.LGPL; path = ../../../COPYING.LGPL; sourceTree = "<group>"; };
+		0022EA9B1D989D10002FCECF /* dnsget.1 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.man; name = dnsget.1; path = ../../../dnsget.1; sourceTree = "<group>"; };
+		0022EA9C1D989D10002FCECF /* dnsget.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = dnsget.c; path = ../../../dnsget.c; sourceTree = "<group>"; };
+		0022EA9D1D989D10002FCECF /* ex-rdns.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = "ex-rdns.c"; path = "../../../ex-rdns.c"; sourceTree = "<group>"; };
+		0022EA9E1D989D10002FCECF /* getopt.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = getopt.c; path = ../../../getopt.c; sourceTree = "<group>"; };
+		0022EA9F1D989D10002FCECF /* inet_XtoX.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = inet_XtoX.c; path = ../../../inet_XtoX.c; sourceTree = "<group>"; };
+		0022EAA01D989D10002FCECF /* Makefile.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.in; path = ../../../Makefile.in; sourceTree = "<group>"; };
+		0022EAA11D989D10002FCECF /* NEWS */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = NEWS; path = ../../../NEWS; sourceTree = "<group>"; };
+		0022EAA21D989D10002FCECF /* NOTES */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = NOTES; path = ../../../NOTES; sourceTree = "<group>"; };
+		0022EAA31D989D10002FCECF /* platform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = platform.h; path = ../../../platform.h; sourceTree = "<group>"; };
+		0022EAA41D989D10002FCECF /* rblcheck.1 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.man; name = rblcheck.1; path = ../../../rblcheck.1; sourceTree = "<group>"; };
+		0022EAA51D989D10002FCECF /* rblcheck.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = rblcheck.c; path = ../../../rblcheck.c; sourceTree = "<group>"; };
+		0022EAA61D989D10002FCECF /* TODO */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = TODO; path = ../../../TODO; sourceTree = "<group>"; };
+		0022EAA71D989D10002FCECF /* udns_bl.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_bl.c; path = ../../../udns_bl.c; sourceTree = "<group>"; };
+		0022EAA81D989D10002FCECF /* udns_codes.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_codes.c; path = ../../../udns_codes.c; sourceTree = "<group>"; };
+		0022EAA91D989D10002FCECF /* udns_dn.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_dn.c; path = ../../../udns_dn.c; sourceTree = "<group>"; };
+		0022EAAA1D989D10002FCECF /* udns_dntosp.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_dntosp.c; path = ../../../udns_dntosp.c; sourceTree = "<group>"; };
+		0022EAAB1D989D10002FCECF /* udns_init.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_init.c; path = ../../../udns_init.c; sourceTree = "<group>"; };
+		0022EAAC1D989D10002FCECF /* udns_jran.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_jran.c; path = ../../../udns_jran.c; sourceTree = "<group>"; };
+		0022EAAD1D989D10002FCECF /* udns_misc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_misc.c; path = ../../../udns_misc.c; sourceTree = "<group>"; };
+		0022EAAE1D989D10002FCECF /* udns_parse.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_parse.c; path = ../../../udns_parse.c; sourceTree = "<group>"; };
+		0022EAAF1D989D10002FCECF /* udns_resolver.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_resolver.c; path = ../../../udns_resolver.c; sourceTree = "<group>"; };
+		0022EAB01D989D10002FCECF /* udns_rr_a.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_rr_a.c; path = ../../../udns_rr_a.c; sourceTree = "<group>"; };
+		0022EAB11D989D10002FCECF /* udns_rr_mx.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_rr_mx.c; path = ../../../udns_rr_mx.c; sourceTree = "<group>"; };
+		0022EAB21D989D10002FCECF /* udns_rr_naptr.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_rr_naptr.c; path = ../../../udns_rr_naptr.c; sourceTree = "<group>"; };
+		0022EAB31D989D10002FCECF /* udns_rr_ptr.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_rr_ptr.c; path = ../../../udns_rr_ptr.c; sourceTree = "<group>"; };
+		0022EAB41D989D10002FCECF /* udns_rr_srv.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_rr_srv.c; path = ../../../udns_rr_srv.c; sourceTree = "<group>"; };
+		0022EAB51D989D10002FCECF /* udns_rr_txt.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_rr_txt.c; path = ../../../udns_rr_txt.c; sourceTree = "<group>"; };
+		0022EAB61D989D10002FCECF /* udns_XtoX.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = udns_XtoX.c; path = ../../../udns_XtoX.c; sourceTree = "<group>"; };
+		0022EAB71D989D10002FCECF /* udns.3 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = udns.3; path = ../../../udns.3; sourceTree = "<group>"; };
+		0022EAB81D989D10002FCECF /* udns.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = udns.h; path = ../../../udns.h; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0022EA861D989CE2002FCECF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0022EA801D989CE2002FCECF = {
+			isa = PBXGroup;
+			children = (
+				0022EA971D989D10002FCECF /* config.h */,
+				0022EA981D989D10002FCECF /* configure */,
+				0022EA991D989D10002FCECF /* configure.lib */,
+				0022EA9A1D989D10002FCECF /* COPYING.LGPL */,
+				0022EA9B1D989D10002FCECF /* dnsget.1 */,
+				0022EA9C1D989D10002FCECF /* dnsget.c */,
+				0022EA9D1D989D10002FCECF /* ex-rdns.c */,
+				0022EA9E1D989D10002FCECF /* getopt.c */,
+				0022EA9F1D989D10002FCECF /* inet_XtoX.c */,
+				0022EAA01D989D10002FCECF /* Makefile.in */,
+				0022EAA11D989D10002FCECF /* NEWS */,
+				0022EAA21D989D10002FCECF /* NOTES */,
+				0022EAA31D989D10002FCECF /* platform.h */,
+				0022EAA41D989D10002FCECF /* rblcheck.1 */,
+				0022EAA51D989D10002FCECF /* rblcheck.c */,
+				0022EAA61D989D10002FCECF /* TODO */,
+				0022EAA71D989D10002FCECF /* udns_bl.c */,
+				0022EAA81D989D10002FCECF /* udns_codes.c */,
+				0022EAA91D989D10002FCECF /* udns_dn.c */,
+				0022EAAA1D989D10002FCECF /* udns_dntosp.c */,
+				0022EAAB1D989D10002FCECF /* udns_init.c */,
+				0022EAAC1D989D10002FCECF /* udns_jran.c */,
+				0022EAAD1D989D10002FCECF /* udns_misc.c */,
+				0022EAAE1D989D10002FCECF /* udns_parse.c */,
+				0022EAAF1D989D10002FCECF /* udns_resolver.c */,
+				0022EAB01D989D10002FCECF /* udns_rr_a.c */,
+				0022EAB11D989D10002FCECF /* udns_rr_mx.c */,
+				0022EAB21D989D10002FCECF /* udns_rr_naptr.c */,
+				0022EAB31D989D10002FCECF /* udns_rr_ptr.c */,
+				0022EAB41D989D10002FCECF /* udns_rr_srv.c */,
+				0022EAB51D989D10002FCECF /* udns_rr_txt.c */,
+				0022EAB61D989D10002FCECF /* udns_XtoX.c */,
+				0022EAB71D989D10002FCECF /* udns.3 */,
+				0022EAB81D989D10002FCECF /* udns.h */,
+				0022EA8A1D989CE2002FCECF /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		0022EA8A1D989CE2002FCECF /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0022EA891D989CE2002FCECF /* libudns-osx.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		0022EA871D989CE2002FCECF /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		0022EA881D989CE2002FCECF /* udns-osx */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0022EA941D989CE2002FCECF /* Build configuration list for PBXNativeTarget "udns-osx" */;
+			buildPhases = (
+				0022EA851D989CE2002FCECF /* Sources */,
+				0022EA861D989CE2002FCECF /* Frameworks */,
+				0022EA871D989CE2002FCECF /* Headers */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "udns-osx";
+			productName = "udns-osx";
+			productReference = 0022EA891D989CE2002FCECF /* libudns-osx.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0022EA811D989CE2002FCECF /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0800;
+				ORGANIZATIONNAME = "Open Peer Foundation";
+				TargetAttributes = {
+					0022EA881D989CE2002FCECF = {
+						CreatedOnToolsVersion = 8.0;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 0022EA841D989CE2002FCECF /* Build configuration list for PBXProject "udns-osx" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 0022EA801D989CE2002FCECF;
+			productRefGroup = 0022EA8A1D989CE2002FCECF /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0022EA881D989CE2002FCECF /* udns-osx */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0022EA851D989CE2002FCECF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0022EABD1D989D10002FCECF /* inet_XtoX.c in Sources */,
+				0022EACC1D989D10002FCECF /* udns_rr_ptr.c in Sources */,
+				0022EACD1D989D10002FCECF /* udns_rr_srv.c in Sources */,
+				0022EACB1D989D10002FCECF /* udns_rr_naptr.c in Sources */,
+				0022EAC91D989D10002FCECF /* udns_rr_a.c in Sources */,
+				0022EAC51D989D10002FCECF /* udns_jran.c in Sources */,
+				0022EACF1D989D10002FCECF /* udns_XtoX.c in Sources */,
+				0022EAC41D989D10002FCECF /* udns_init.c in Sources */,
+				0022EAC61D989D10002FCECF /* udns_misc.c in Sources */,
+				0022EAC01D989D10002FCECF /* udns_bl.c in Sources */,
+				0022EAC81D989D10002FCECF /* udns_resolver.c in Sources */,
+				0022EAC11D989D10002FCECF /* udns_codes.c in Sources */,
+				0022EAC21D989D10002FCECF /* udns_dn.c in Sources */,
+				0022EAC71D989D10002FCECF /* udns_parse.c in Sources */,
+				0022EAC31D989D10002FCECF /* udns_dntosp.c in Sources */,
+				0022EACA1D989D10002FCECF /* udns_rr_mx.c in Sources */,
+				0022EACE1D989D10002FCECF /* udns_rr_txt.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0022EA921D989CE2002FCECF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_SUSPICIOUS_MOVES = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+					HAVE_CONFIG_H,
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		0022EA931D989CE2002FCECF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_SUSPICIOUS_MOVES = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = HAVE_CONFIG_H;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		0022EA951D989CE2002FCECF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				EXECUTABLE_PREFIX = lib;
+				GCC_ENABLE_CPP_EXCEPTIONS = YES;
+				GCC_ENABLE_CPP_RTTI = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		0022EA961D989CE2002FCECF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				EXECUTABLE_PREFIX = lib;
+				GCC_ENABLE_CPP_EXCEPTIONS = YES;
+				GCC_ENABLE_CPP_RTTI = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0022EA841D989CE2002FCECF /* Build configuration list for PBXProject "udns-osx" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0022EA921D989CE2002FCECF /* Debug */,
+				0022EA931D989CE2002FCECF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0022EA941D989CE2002FCECF /* Build configuration list for PBXNativeTarget "udns-osx" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0022EA951D989CE2002FCECF /* Debug */,
+				0022EA961D989CE2002FCECF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0022EA811D989CE2002FCECF /* Project object */;
+}

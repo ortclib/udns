@@ -56,9 +56,11 @@ struct in_addr;
 #endif //EAFNOSUPPORT
 
 #ifndef WINDOWS
+#ifndef __APPLE__
 struct in_addr {	/* declare it here to avoid messing with headers */
   unsigned char x[4];
 };
+#endif //__APPLE__
 #endif //WINDOWS
 
 #endif /* TEST */
