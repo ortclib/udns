@@ -7,3 +7,7 @@ xcuserdata
 *.db
 *.opendb
 .vs/
+
+# codelite
+projects/linux/codelite/udns/*.mk
+projects/linux/codelite/udns/*.txt
