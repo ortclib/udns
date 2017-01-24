@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\.gitattributes" />
+    <None Include="..\..\..\.gitignore" />
+    <None Include="..\..\..\configure" />
+    <None Include="..\..\..\COPYING.LGPL" />
+    <None Include="..\..\..\dnsget.1" />
+    <None Include="..\..\..\Makefile.in" />
+    <None Include="..\..\..\NEWS" />
+    <None Include="..\..\..\NOTES" />
+    <None Include="..\..\..\rblcheck.1" />
+    <None Include="..\..\..\TODO" />
+    <None Include="..\..\..\udns.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\config.h" />
+    <ClInclude Include="..\..\..\platform.h" />
+    <ClInclude Include="..\..\..\udns.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="..\..\..\configure.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\dnsget.c" />
+    <ClCompile Include="..\..\..\ex-rdns.c" />
+    <ClCompile Include="..\..\..\getopt.c" />
+    <ClCompile Include="..\..\..\inet_XtoX.c" />
+    <ClCompile Include="..\..\..\rblcheck.c" />
+    <ClCompile Include="..\..\..\udns_bl.c" />
+    <ClCompile Include="..\..\..\udns_codes.c" />
+    <ClCompile Include="..\..\..\udns_dn.c" />
+    <ClCompile Include="..\..\..\udns_dntosp.c" />
+    <ClCompile Include="..\..\..\udns_init.c" />
+    <ClCompile Include="..\..\..\udns_jran.c" />
+    <ClCompile Include="..\..\..\udns_misc.c" />
+    <ClCompile Include="..\..\..\udns_parse.c" />
+    <ClCompile Include="..\..\..\udns_resolver.c" />
+    <ClCompile Include="..\..\..\udns_rr_a.c" />
+    <ClCompile Include="..\..\..\udns_rr_mx.c" />
+    <ClCompile Include="..\..\..\udns_rr_naptr.c" />
+    <ClCompile Include="..\..\..\udns_rr_ptr.c" />
+    <ClCompile Include="..\..\..\udns_rr_srv.c" />
+    <ClCompile Include="..\..\..\udns_rr_txt.c" />
+    <ClCompile Include="..\..\..\udns_XtoX.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+</Project>
