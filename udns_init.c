@@ -70,7 +70,7 @@ static void dns_set_serv_internal(struct dns_ctx *ctx, char *serv) {
   for (serv = strtok_s(serv, space, &nextToken); serv; serv = strtok_s(serv, space, &nextToken))
 #else
   for (serv = strtok(serv, space); serv; serv = strtok(NULL, space))
-#endif //UDNS_WINRT
+#endif //UDNS_WINUWP
     dns_add_serv(ctx, serv);
 }
 
@@ -81,7 +81,7 @@ static void dns_set_srch_internal(struct dns_ctx *ctx, char *srch) {
   for (srch = strtok_s(srch, space, &nextToken); srch; srch = strtok_s(srch, space, &nextToken))
 #else
   for (srch = strtok(srch, space); srch; srch = strtok(NULL, space))
-#endif //UDNS_WINRT
+#endif //UDNS_WINUWP
     dns_add_srch(ctx, srch);
 }
 

@@ -6,8 +6,8 @@
 #ifdef _WIN32
 
 #ifdef __cplusplus_winrt
-#undef UDNS_WINRT
-#define UDNS_WINRT
+#undef UDNS_WINUWP
+#define UDNS_WINUWP
 #endif //__cplusplus_winrt
 
 /* these are expected to exist */
@@ -36,7 +36,7 @@
 #undef HAVE_INET_PTON_NTOP
 #undef HAVE_POLL
 
-#ifdef UDNS_WINRT
+#ifdef UDNS_WINUWP
 
 /* these are not allowed */
 #undef HAVE_IPHLPAPI_H
@@ -45,13 +45,13 @@
 #undef HAVE_ETC_RESOLV_CONF
 #undef HAVE_DUPENV_S
 
-#ifdef UDNS_WINRT_PHONE
+#ifdef UDNS_WINUWP_PHONE
 #undef HAVE_SVCGUID_H
 #undef HAVE_DHCPREQUESTPARAMS
 #undef HAVE_DHCPV6REQUESTPARAMS
 #endif //(WINAPI_FAMILY == WINAPI_FAMILY_PHONE_APP)
 
-#endif //UDNS_WINRT
+#endif //UDNS_WINUWP
 
 #else /* _WIN32 */
 
