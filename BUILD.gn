@@ -15,12 +15,7 @@ static_library("udns") {
   
   sources = [
     "config.h",
-    "dnsget.c",
-    "ex-rdns.c",
-    "getopt.c",
-    "inet_XtoX.c",
     "platform.h",
-    "rblcheck.c",
     "udns.h",
     "udns_bl.c",
     "udns_codes.c",
