@@ -41,4 +41,8 @@ static_library("udns") {
     "UNICODE",
   ]
 
+  if  (is_win) {
+    defines += [ "UDNS_WINUWP" ]
+  }
+
 }
