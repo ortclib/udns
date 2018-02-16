@@ -426,7 +426,6 @@ static int dns_init_wsalookupservice(struct dns_ctx *ctx) {
 #define FREE(x) HeapFree(GetProcessHeap(), 0, (x))
 
   int ret = -1;
-  int iCount = 0;
   GUID guid = SVCID_NAMESERVER_UDP;
 
 //  WSAQUERYSETW 

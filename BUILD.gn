@@ -4,7 +4,7 @@
 
 config("udns_config") {
     if  (is_win) {
-        cflags = [ "/WX-" ]
+#        cflags = [ "/WX-" ]
     }
 }
 
