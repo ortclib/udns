@@ -311,7 +311,7 @@ int dns_set_opts(struct dns_ctx *ctx, const char *opts) {
     if (!*opts) break;
     for(i = 0; ; ++i) {
       if (i >= sizeof(dns_opts)/sizeof(dns_opts[0])) { ++err; break; }
-      v = strlen(dns_opts[i].name);
+      v = (unsigned) strlen(dns_opts[i].name);
       if (strncmp(dns_opts[i].name, opts, v) != 0 ||
           (opts[v] != ':' && opts[v] != '='))
         continue;
@@ -367,7 +367,7 @@ int dns_add_srch(struct dns_ctx *ctx, const char *srch) {
     return 0;
   }
   dnl =
-    sizeof(ctx->dnsc_srchbuf) - (ctx->dnsc_srchend - ctx->dnsc_srchbuf) - 1;
+    (int) sizeof(ctx->dnsc_srchbuf) - (ctx->dnsc_srchend - ctx->dnsc_srchbuf) - 1;
   dnl = dns_sptodn(srch, ctx->dnsc_srchend, dnl);
   if (dnl > 0)
     ctx->dnsc_srchend += dnl;
