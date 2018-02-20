@@ -1322,7 +1322,7 @@ void *dns_resolve(struct dns_ctx *ctx, struct dns_query *q) {
     fd_set rfd;
     struct timeval tv;
     FD_ZERO(&rfd);
-    FD_SET(ctx->dnsc_udpsock, &rfd);
+    FD_SET((unsigned int)ctx->dnsc_udpsock, &rfd);
     tv.tv_sec = n; tv.tv_usec = 0;
     n = select(ctx->dnsc_udpsock + 1, &rfd, NULL, NULL, &tv);
 #endif
