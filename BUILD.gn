@@ -2,9 +2,27 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+if  (is_android) {
+  import("//build/config/android/rules.gni")
+  import("//build/config/android/config.gni")
+}
+
 config("udns_config") {
     if  (is_win) {
 #        cflags = [ "/WX-" ]
+    }
+
+    if  (is_android) {
+      cflags = [  "-Wall",
+                  "-W",
+                  "-O2",
+                  "-pipe",
+                  "-fPIC",
+                  "-Wno-unused-parameter",]
+      cflags_cc = [
+            "-Wall",
+            "-std=c++11",
+        ]
     }
 }
 
@@ -36,7 +54,6 @@ static_library("udns") {
   ]
 
   defines = [
-    "UDNS_WINRT",
     "_UNICODE",
     "UNICODE",
   ]
@@ -45,4 +62,23 @@ static_library("udns") {
     defines += [ "UDNS_WINUWP" ]
   }
 
+  if (is_android) {
+    sources -= [ "config.h",
+                 "platform.h",
+                 "udns.h",]
+
+    sources += [ "dnsget.c",
+                 "getopt.c",
+                 "inet_XtoX.c",
+                 ]
+
+    include_dirs = [ 
+                    ".",
+                    "$android_ndk_root/sources/android/support/include",
+                    "$android_ndk_root/sources/cxx-stl/llvm-libc++/libcxx/include",
+                    "$android_ndk_root/platforms/android-19/arch-arm/usr/include", ]
+
+     defines += [ "D_ANDROID",
+                  "DHAVE_CONFIG_H",]
+  }
 }

@@ -1097,14 +1097,14 @@ again: /* receive the reply */
 
   /* find server */
 #ifdef HAVE_IPv6
-  if (sns.sa.sa_family == AF_INET6 && slen >= sizeof(sns.sin6)) {
+  if (sns.sa.sa_family == AF_INET6 && ((unsigned int)slen) >= sizeof(sns.sin6)) {
     for(servi = 0; servi < ctx->dnsc_nserv; ++servi)
       if (sin6_eq(ctx->dnsc_serv[servi].sin6, sns.sin6))
         break;
   }
   else
 #endif
-  if (sns.sa.sa_family == AF_INET && slen >= sizeof(sns.sin)) {
+  if (sns.sa.sa_family == AF_INET && ((unsigned int)slen) >= sizeof(sns.sin)) {
     for(servi = 0; servi < ctx->dnsc_nserv; ++servi)
       if (sin_eq(ctx->dnsc_serv[servi].sin, sns.sin))
         break;
