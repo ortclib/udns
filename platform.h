@@ -91,3 +91,7 @@
 #ifdef NO_IPHLPAPI
 #undef HAVE_IPHLPAPI_H
 #endif /* NO_IPHLPAPI */
+
+#ifdef ANDROID
+#undef HAVE_RES_INIT
+#endif
