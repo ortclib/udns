@@ -76,7 +76,7 @@ static_library("udns") {
                     ".",
                     "$android_ndk_root/sources/android/support/include",
                     "$android_ndk_root/sources/cxx-stl/llvm-libc++/libcxx/include",
-                    "$android_ndk_root/platforms/android-19/arch-arm/usr/include", ]
+                    "$android_ndk_root/platforms/android-16/arch-arm/usr/include", ]
 
      defines += [ "D_ANDROID",
                   "DHAVE_CONFIG_H",]
