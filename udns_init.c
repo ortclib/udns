@@ -61,6 +61,10 @@
 
 #define ISSPACE(x) (x == ' ' || x == '\t' || x == '\r' || x == '\n')
 
+
+
+#if defined(HAVE_REGKEY) || defined(HAVE_ETC_RESOLV_CONF)
+
 static const char space[] = " \t\r\n";
 
 static void dns_set_serv_internal(struct dns_ctx *ctx, char *serv) {
@@ -84,6 +88,7 @@ static void dns_set_srch_internal(struct dns_ctx *ctx, char *srch) {
 #endif //UDNS_WINUWP
     dns_add_srch(ctx, srch);
 }
+#endif
 
 #ifdef HAVE_IPHLPAPI_H
 /* Apparently, some systems does not have proper headers for IPHLPAIP to work.
