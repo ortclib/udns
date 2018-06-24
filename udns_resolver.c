@@ -1285,6 +1285,7 @@ struct dns_resolve_data {
 };
 
 static void dns_resolve_cb(struct dns_ctx *ctx, void *result, void *data) {
+  ((void)ctx); /* ignore unused */
   struct dns_resolve_data *d = (struct dns_resolve_data*)data;
   d->dnsrd_result = result;
   d->dnsrd_done = 1;

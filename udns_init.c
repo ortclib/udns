@@ -74,7 +74,7 @@ static void dns_set_serv_internal(struct dns_ctx *ctx, char *serv) {
   for (serv = strtok_s(serv, space, &nextToken); serv; serv = strtok_s(serv, space, &nextToken))
 #else
   for (serv = strtok(serv, space); serv; serv = strtok(NULL, space))
-#endif //UDNS_WINUWP
+#endif //WINDOWS
     dns_add_serv(ctx, serv);
 }
 
@@ -85,7 +85,7 @@ static void dns_set_srch_internal(struct dns_ctx *ctx, char *srch) {
   for (srch = strtok_s(srch, space, &nextToken); srch; srch = strtok_s(srch, space, &nextToken))
 #else
   for (srch = strtok(srch, space); srch; srch = strtok(NULL, space))
-#endif //UDNS_WINUWP
+#endif //WINDOWS
     dns_add_srch(ctx, srch);
 }
 #endif
@@ -119,12 +119,12 @@ static int dns_initns_iphlpapi(struct dns_ctx *ctx) {
 
   ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_FRIENDLY_NAME;
 
-  DWORD dwSize = 0;
+  //DWORD dwSize = 0;
   DWORD dwRetVal = 0;
 
   ULONG family = AF_UNSPEC;
 
-  LPVOID lpMsgBuf = NULL;
+  //LPVOID lpMsgBuf = NULL;
 
   PIP_ADAPTER_ADDRESSES pAddresses = NULL;
 
@@ -398,6 +398,7 @@ static int dns_init_resconf(struct dns_ctx *ctx) {
 
 #ifdef HAVE_DHCPREQUESTPARAMS
 static int dns_init_dhcp(struct dns_ctx *ctx) {
+  ((void)ctx); /* ignore unused */
   return -1;
 }
 #else /* HAVE_DHCPREQUESTPARAMS */
