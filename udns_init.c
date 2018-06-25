@@ -59,6 +59,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif /* __clang__ */
+
 #define ISSPACE(x) (x == ' ' || x == '\t' || x == '\r' || x == '\n')
 
 
@@ -166,6 +171,7 @@ static int dns_initns_iphlpapi(struct dns_ctx *ctx) {
         case IfOperStatusDown:           goto next_address;
         case IfOperStatusNotPresent:     goto next_address;
         case IfOperStatusLowerLayerDown: goto next_address;
+        default:                         break;
         }
 
         pDnServer = pCurrAddresses->FirstDnsServerAddress;
@@ -527,3 +533,7 @@ int dns_init(struct dns_ctx *ctx, int do_open) {
 
   return do_open ? dns_open(ctx) : 0;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif /* __clang__ */
