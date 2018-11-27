@@ -177,6 +177,9 @@ const struct dns_nameval dns_rcodetab[] = {
  {DNS_R_BADSIG,"BADSIG"},
  {DNS_R_BADKEY,"BADKEY"},
  {DNS_R_BADTIME,"BADTIME"},
+ {DNS_R_BADMODE,"BADMODE"},
+ {DNS_R_BADNAME,"BADNAME"},
+ {DNS_R_BADALG,"BADALG"},
  {0,0}};
 const char *dns_rcodename(enum dns_rcode code) {
  static char nm[20];
@@ -195,6 +198,9 @@ const char *dns_rcodename(enum dns_rcode code) {
  case DNS_R_BADSIG: return dns_rcodetab[11].name;
  case DNS_R_BADKEY: return dns_rcodetab[12].name;
  case DNS_R_BADTIME: return dns_rcodetab[13].name;
+ case DNS_R_BADMODE: return dns_rcodetab[14].name;
+ case DNS_R_BADNAME: return dns_rcodetab[15].name;
+ case DNS_R_BADALG: return dns_rcodetab[16].name;
  }
  return _dns_format_code(nm,"rcode",code);
 }
