@@ -256,7 +256,12 @@ enum dns_rcode {	/* reply codes */
   /* The following are TSIG extended errors */
   DNS_R_BADSIG		= 16,
   DNS_R_BADKEY		= 17,
-  DNS_R_BADTIME		= 18
+  DNS_R_BADTIME		= 18,
+  /* Extended RCODE Error values of 19, 20, and 21 as listed in 
+     https://tools.ietf.org/html/rfc2930#section-2.6 */
+  DNS_R_BADMODE		= 19,
+  DNS_R_BADNAME		= 20,
+  DNS_R_BADALG		= 21
 };
 
 static __inline unsigned dns_get16(dnscc_t *s) {
